@@ -1,0 +1,37 @@
+// Colors
+$bg-primary: #0a0a0f;
+$bg-secondary: #12121a;
+$bg-card: #1a1a2e;
+$bg-card-hover: #222240;
+$accent: #6c5ce7;
+$accent-light: #a29bfe;
+$accent-glow: rgba(108, 92, 231, 0.3);
+$text-primary: #e8e8f0;
+$text-secondary: #8888a0;
+$text-muted: #555570;
+$success: #00b894;
+$warning: #fdcb6e;
+$danger: #e17055;
+$border: #2a2a40;
+
+// Spacing
+$space-xs: 0.25rem;
+$space-sm: 0.5rem;
+$space-md: 1rem;
+$space-lg: 1.5rem;
+$space-xl: 2rem;
+$space-2xl: 3rem;
+
+// Typography
+$font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+$font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+// Borders
+$radius-sm: 6px;
+$radius-md: 10px;
+$radius-lg: 16px;
+
+// Breakpoints
+$mobile: 480px;
+$tablet: 768px;
+$desktop: 1024px;
