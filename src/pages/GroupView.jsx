@@ -3,12 +3,176 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getGroup, updateGroup, getGroupSecrets, addSecret, submitSecret, unsubmitSecret, triggerCompare, deleteSecret, getAdminLogs, deleteGroup } from '../services/api';
 
-const MATCH_MODES = [
-  { value: 'semantic', label: 'Semantic Equivalence', description: 'Match if secrets mean the same thing.' },
-  { value: 'seriousness', label: 'Same Gravity', description: 'Match if secrets carry equal weight or seriousness.' },
-  { value: 'sentiment', label: 'Shared Sentiment', description: 'Match if both are positive, negative, fearful, etc.' },
-  { value: 'custom', label: 'Custom Logic', description: 'Define your own rules for the AI.' },
+const PURPOSES = [
+  { value: 'fun', label: 'Fun & Games', icon: '\u{1F389}', description: 'Lighthearted, silly, embarrassing confessions — keep it playful' },
+  { value: 'heart', label: 'Heart-to-Heart', icon: '\u{1F497}', description: 'Feelings, relationships, crushes, love — the emotional stuff' },
+  { value: 'weight', label: 'Weight Off Your Chest', icon: '\u{1F32C}\u{FE0F}', description: 'Deep confessions, guilt, regrets — things you need to let go of' },
+  { value: 'dreams', label: 'Dreams & Ambitions', icon: '\u{2728}', description: 'Goals, aspirations, bucket list items — what you hope for' },
+  { value: 'fears', label: 'Fears & Vulnerabilities', icon: '\u{1F30A}', description: 'Insecurities, anxieties, things that keep you up at night' },
+  { value: 'custom', label: 'Custom', icon: '\u{1F527}', description: 'Define your own context for this room' },
 ];
+
+const STRATEGIES = [
+  { value: 'topic', label: 'Same Topic', description: 'Both secrets are about the same subject, even if worded differently' },
+  { value: 'feeling', label: 'Same Feeling', description: 'Both express the same core emotion — love, guilt, excitement, shame' },
+  { value: 'weight', label: 'Same Weight', description: 'Both carry a similar level of seriousness or gravity' },
+  { value: 'vibe', label: 'Same Vibe', description: 'Loose, intuitive matching based on overall energy and tone' },
+  { value: 'exact', label: 'Near-Identical', description: 'Only match when secrets are about the exact same specific thing' },
+  { value: 'custom', label: 'Custom Logic', description: 'Write your own matching rules for the AI' },
+];
+
+const STRICTNESS_LABELS = ['', 'Very Loose', 'Loose', 'Balanced', 'Strict', 'Very Strict'];
+
+function RulesModal({ roomConfig, onSave, onClose }) {
+  const [purpose, setPurpose] = useState(roomConfig?.purpose || '');
+  const [customPurpose, setCustomPurpose] = useState(roomConfig?.custom_purpose || '');
+  const [strategy, setStrategy] = useState(roomConfig?.strategy || '');
+  const [customStrategy, setCustomStrategy] = useState(roomConfig?.custom_strategy || '');
+  const [strictness, setStrictness] = useState(roomConfig?.strictness || 3);
+  const [additionalGuidance, setAdditionalGuidance] = useState(roomConfig?.additional_guidance || '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave({
+      purpose,
+      custom_purpose: purpose === 'custom' ? customPurpose : '',
+      strategy,
+      custom_strategy: strategy === 'custom' ? customStrategy : '',
+      strictness,
+      additional_guidance: additionalGuidance,
+    });
+    setSaving(false);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-content">
+        <div className="modal-header">
+          <h2>Room Intelligence Rules</h2>
+          <p>Configure how the AI evaluates and matches secrets in this room.</p>
+        </div>
+
+        <div className="modal-body">
+          {/* PURPOSE */}
+          <div className="modal-section">
+            <div className="modal-section__label">What is this room for?</div>
+            <div className="modal-section__hint">This helps the AI understand the context and tone of secrets being shared.</div>
+            <div className="option-grid">
+              {PURPOSES.map((p) => (
+                <button
+                  key={p.value}
+                  className={`option-card ${purpose === p.value ? 'option-card--selected' : ''}`}
+                  onClick={() => setPurpose(p.value)}
+                >
+                  <span className="option-card__icon">{p.icon}</span>
+                  <span className="option-card__label">{p.label}</span>
+                  <span className="option-card__desc">{p.description}</span>
+                </button>
+              ))}
+            </div>
+            {purpose === 'custom' && (
+              <textarea
+                className="modal-textarea"
+                value={customPurpose}
+                onChange={(e) => setCustomPurpose(e.target.value)}
+                placeholder="Describe what this room is about and what kind of secrets people will be sharing..."
+                rows={3}
+              />
+            )}
+          </div>
+
+          {/* STRATEGY */}
+          <div className="modal-section">
+            <div className="modal-section__label">What counts as a match?</div>
+            <div className="modal-section__hint">How should the AI decide if two secrets are related?</div>
+            <div className="option-list">
+              {STRATEGIES.map((s) => (
+                <button
+                  key={s.value}
+                  className={`option-row ${strategy === s.value ? 'option-row--selected' : ''}`}
+                  onClick={() => setStrategy(s.value)}
+                >
+                  <div className="option-row__radio">{strategy === s.value ? '\u25C9' : '\u25CB'}</div>
+                  <div>
+                    <div className="option-row__label">{s.label}</div>
+                    <div className="option-row__desc">{s.description}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            {strategy === 'custom' && (
+              <textarea
+                className="modal-textarea"
+                value={customStrategy}
+                onChange={(e) => setCustomStrategy(e.target.value)}
+                placeholder="Describe your matching logic... e.g. 'Match if both secrets are something the person wants to tell a specific other person'"
+                rows={3}
+              />
+            )}
+          </div>
+
+          {/* STRICTNESS */}
+          <div className="modal-section">
+            <div className="modal-section__label">Match Sensitivity</div>
+            <div className="modal-section__hint">How generous or strict should the AI be when deciding if two secrets match?</div>
+            <div className="strictness-control">
+              <div className="strictness-labels">
+                <span>Generous</span>
+                <span className="strictness-value">{STRICTNESS_LABELS[strictness]}</span>
+                <span>Strict</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="5"
+                value={strictness}
+                onChange={(e) => setStrictness(+e.target.value)}
+                className="strictness-slider"
+              />
+              <div className="strictness-dots">
+                {[1,2,3,4,5].map(n => (
+                  <span key={n} className={`strictness-dot ${strictness === n ? 'strictness-dot--active' : ''}`} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ADDITIONAL GUIDANCE */}
+          <div className="modal-section">
+            <div className="modal-section__label">Additional Guidance <span style={{ fontWeight: 400, color: '#555570' }}>(optional)</span></div>
+            <div className="modal-section__hint">Any extra instructions for the AI judge. This is appended to the rules above.</div>
+            <textarea
+              className="modal-textarea"
+              value={additionalGuidance}
+              onChange={(e) => setAdditionalGuidance(e.target.value)}
+              placeholder="e.g. 'Be extra careful not to match secrets that are only superficially similar' or 'We're all coworkers so work-related secrets are expected'"
+              rows={3}
+            />
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn--secondary" onClick={onClose} style={{ padding: '10px 24px' }}>Cancel</button>
+          <button className="btn btn--primary" onClick={handleSave} disabled={saving} style={{ padding: '10px 32px' }}>
+            {saving ? 'Saving...' : 'Save Rules'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getRuleSummary(rc) {
+  if (!rc || (!rc.purpose && !rc.strategy)) return null;
+  const purposeLabel = PURPOSES.find(p => p.value === rc.purpose)?.label;
+  const strategyLabel = STRATEGIES.find(s => s.value === rc.strategy)?.label;
+  const parts = [];
+  if (purposeLabel) parts.push(purposeLabel);
+  if (strategyLabel) parts.push(strategyLabel);
+  if (rc.strictness) parts.push(STRICTNESS_LABELS[rc.strictness]);
+  return parts.join(' / ');
+}
 
 export default function GroupView() {
   const { id } = useParams();
@@ -22,17 +186,15 @@ export default function GroupView() {
   const [comparisons, setComparisons] = useState([]);
   const [adminLogs, setAdminLogs] = useState(null);
   const [showAdminLogs, setShowAdminLogs] = useState(false);
-  
+
   const [newSecret, setNewSecret] = useState('');
   const [obfLevel, setObfLevel] = useState(3);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
   const [comparing, setComparing] = useState(false);
-  
-  const [editingConfig, setEditingConfig] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [matchMode, setMatchMode] = useState('semantic');
+
+  const [showRulesModal, setShowRulesModal] = useState(false);
 
   const isGroupAdmin = group?.members?.find(
     (m) => m.central_user_id === user.central_user_id && m.role === 'admin'
@@ -55,8 +217,6 @@ export default function GroupView() {
       setOtherMembers(secretsData.otherMembers);
       setSubmittedStats(secretsData.submittedStats);
       setComparisons(secretsData.comparisons || []);
-      setAiPrompt(groupData.group.ai_prompt || '');
-      setMatchMode(groupData.group.match_mode || 'semantic');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -138,11 +298,11 @@ export default function GroupView() {
     }
   };
 
-  const handleSaveConfig = async () => {
+  const handleSaveRules = async (roomConfig) => {
     setError('');
     try {
-      await updateGroup(id, { ai_prompt: aiPrompt, match_mode: matchMode });
-      setEditingConfig(false);
+      await updateGroup(id, { room_config: roomConfig });
+      setShowRulesModal(false);
       setSuccess('Intelligence rules updated.');
       await load();
     } catch (err) { setError(err.message); }
@@ -156,14 +316,24 @@ export default function GroupView() {
   if (loading) return <div className="loading">Loading...</div>;
   if (!group) return <div className="page"><div className="alert alert--error">Group not found</div></div>;
 
+  const ruleSummary = getRuleSummary(group.room_config);
+
   return (
     <div className="container">
+      {showRulesModal && (
+        <RulesModal
+          roomConfig={group.room_config || {}}
+          onSave={handleSaveRules}
+          onClose={() => setShowRulesModal(false)}
+        />
+      )}
+
       <div className="layout-grid">
         {/* SIDEBAR */}
         <div className="sidebar-panel">
           <div className="glass-card">
             <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{group.name}</h1>
-            
+
             <div className="section-label">Access Code</div>
             <div className="join-code" onClick={copyCode} style={{ display: 'block', textAlign: 'center', marginBottom: '1rem' }}>
               {group.join_code}
@@ -172,45 +342,21 @@ export default function GroupView() {
             {isGroupAdmin && (
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem' }}>
                 <div className="section-label">Intelligence Control</div>
-                
-                {!editingConfig ? (
-                  <div style={{ marginBottom: '1rem' }}>
-                    <div style={{ fontSize: '0.8rem', color: '#a29bfe', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                      MODE: {MATCH_MODES.find(m => m.value === matchMode)?.label.toUpperCase()}
+
+                <div style={{ marginBottom: '1rem' }}>
+                  {ruleSummary ? (
+                    <div style={{ fontSize: '0.75rem', color: '#a29bfe', fontWeight: 'bold', marginBottom: '0.5rem', lineHeight: '1.4' }}>
+                      {ruleSummary}
                     </div>
-                    <button className="btn btn--secondary btn--full" style={{ padding: '6px', fontSize: '0.75rem' }} onClick={() => setEditingConfig(true)}>
-                      CONFIGURE RULES
-                    </button>
-                  </div>
-                ) : (
-                  <div className="glass-card" style={{ padding: '0.75rem', marginTop: '0.5rem', background: '#0a0a0f' }}>
-                    <div className="form-group">
-                      <label style={{ fontSize: '0.7rem' }}>MATCHING STRATEGY</label>
-                      <select value={matchMode} onChange={(e) => setMatchMode(e.target.value)} style={{ fontSize: '0.8rem', padding: '4px' }}>
-                        {MATCH_MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                      </select>
-                      <p style={{ fontSize: '0.7rem', color: '#555570', marginTop: '4px' }}>{MATCH_MODES.find(m => m.value === matchMode)?.description}</p>
+                  ) : (
+                    <div style={{ fontSize: '0.75rem', color: '#555570', marginBottom: '0.5rem' }}>
+                      No rules configured yet
                     </div>
-                    
-                    {matchMode === 'custom' && (
-                      <div className="form-group">
-                        <label style={{ fontSize: '0.7rem' }}>REVEAL LOGIC</label>
-                        <textarea
-                          value={aiPrompt}
-                          onChange={(e) => setAiPrompt(e.target.value)}
-                          placeholder="Reveal when..."
-                          rows={3}
-                          style={{ fontSize: '0.8rem' }}
-                        />
-                      </div>
-                    )}
-                    
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button className="btn btn--primary" style={{ flex: 1, padding: '4px', fontSize: '0.7rem' }} onClick={handleSaveConfig}>SAVE</button>
-                      <button className="btn btn--secondary" style={{ flex: 1, padding: '4px', fontSize: '0.7rem' }} onClick={() => setEditingConfig(false)}>X</button>
-                    </div>
-                  </div>
-                )}
+                  )}
+                  <button className="btn btn--secondary btn--full" style={{ padding: '8px', fontSize: '0.75rem' }} onClick={() => setShowRulesModal(true)}>
+                    CONFIGURE RULES
+                  </button>
+                </div>
 
                 <div style={{ marginBottom: '1rem' }}>
                   <button
@@ -224,8 +370,8 @@ export default function GroupView() {
                 </div>
 
                 {user.is_admin && (
-                  <button 
-                    className="btn btn--secondary btn--full" 
+                  <button
+                    className="btn btn--secondary btn--full"
                     style={{ padding: '6px', fontSize: '0.75rem', borderStyle: 'dashed', marginTop: '0.5rem' }}
                     onClick={() => setShowAdminLogs(!showAdminLogs)}
                   >
@@ -343,7 +489,7 @@ export default function GroupView() {
               <div className="section-label">Intelligence History (My Results)</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {comparisons.map((c) => (
-                  <div key={c.id} className="glass-card" style={{ 
+                  <div key={c.id} className="glass-card" style={{
                     padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     borderLeft: c.matched ? '4px solid #00b894' : '4px solid #2a2a40',
                     background: c.matched ? 'rgba(0, 184, 148, 0.05)' : 'rgba(255, 255, 255, 0.02)'

@@ -103,11 +103,11 @@ router.put('/:id', authenticate, async (req, res) => {
     );
     if (!membership[0]) return res.status(403).json({ error: 'Only the group admin can update settings' });
 
-    const { name, description, ai_prompt, match_mode } = req.body;
+    const { name, description, ai_prompt, match_mode, room_config } = req.body;
     const { rows: [group] } = await pool.query(
-      `UPDATE groups SET name = COALESCE($1, name), description = COALESCE($2, description), ai_prompt = COALESCE($3, ai_prompt), match_mode = COALESCE($4, match_mode)
-       WHERE id = $5 RETURNING *`,
-      [name, description, ai_prompt, match_mode, req.params.id]
+      `UPDATE groups SET name = COALESCE($1, name), description = COALESCE($2, description), ai_prompt = COALESCE($3, ai_prompt), match_mode = COALESCE($4, match_mode), room_config = COALESCE($5, room_config)
+       WHERE id = $6 RETURNING *`,
+      [name, description, ai_prompt, match_mode, room_config ? JSON.stringify(room_config) : null, req.params.id]
     );
     res.json({ group });
   } catch (err) {

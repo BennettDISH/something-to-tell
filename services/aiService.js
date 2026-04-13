@@ -18,9 +18,76 @@ function getClient(config) {
   return { type: 'anthropic', client: new Anthropic({ apiKey: config.api_key }) };
 }
 
-export async function compareSecrets(config, secretA, secretB, customPrompt, matchMode = 'semantic') {
-  const { type, client } = getClient(config);
+function buildComparisonPrompt(secretA, secretB, roomConfig, customPrompt, matchMode) {
+  const rc = roomConfig || {};
 
+  // If there's a rich room_config, build from that
+  if (rc.purpose || rc.strategy) {
+    const purposeDescriptions = {
+      fun: 'This is a lighthearted group for fun, silly, or embarrassing confessions. Secrets tend to be playful.',
+      heart: 'This is an emotionally-focused group for sharing feelings about relationships, love, and personal connections. Secrets are heartfelt and vulnerable.',
+      weight: 'This group is for getting heavy things off your chest — deep confessions, guilt, regrets, or things people have been holding onto.',
+      dreams: 'This group is about sharing dreams, ambitions, goals, and aspirations — things people hope for or want to achieve.',
+      fears: 'This group is for sharing fears, insecurities, anxieties, and vulnerabilities — the things that scare people or keep them up at night.',
+    };
+
+    const strategyDescriptions = {
+      topic: 'Match if both secrets are about the same subject or topic, even if phrased differently. For example, both about a workplace situation, or both about a family member.',
+      feeling: 'Match if both secrets express the same core emotion — love, guilt, excitement, shame, hope, etc. The topics can differ.',
+      weight: 'Match if both secrets carry a similar level of gravity or seriousness. Two light confessions match; two heavy life-altering secrets match. A light one and a heavy one do not.',
+      vibe: 'Match if the overall energy or vibe is similar — loose, intuitive matching. Both feel optimistic, both feel dark, both feel nostalgic, etc.',
+      exact: 'Match only if the secrets are about the same specific thing — nearly identical in meaning and intent.',
+    };
+
+    const strictnessMap = {
+      1: 'Be very generous with matching — look for any reasonable connection. When in doubt, lean toward matching.',
+      2: 'Be somewhat generous — a clear thematic or emotional connection is enough.',
+      3: 'Use balanced judgment — there should be a solid, defensible reason for a match.',
+      4: 'Be fairly strict — only match when the connection is clear and strong.',
+      5: 'Be very strict — only match when the connection is unmistakable and obvious.',
+    };
+
+    let criteria = '';
+    if (rc.purpose && purposeDescriptions[rc.purpose]) {
+      criteria += `CONTEXT: ${purposeDescriptions[rc.purpose]}\n\n`;
+    } else if (rc.purpose === 'custom' && rc.custom_purpose) {
+      criteria += `CONTEXT: ${rc.custom_purpose}\n\n`;
+    }
+
+    if (rc.strategy && strategyDescriptions[rc.strategy]) {
+      criteria += `MATCHING RULE: ${strategyDescriptions[rc.strategy]}\n\n`;
+    } else if (rc.strategy === 'custom' && rc.custom_strategy) {
+      criteria += `MATCHING RULE: ${rc.custom_strategy}\n\n`;
+    }
+
+    const strictness = rc.strictness || 3;
+    criteria += `STRICTNESS: ${strictnessMap[strictness]}`;
+
+    if (rc.additional_guidance) {
+      criteria += `\n\nADDITIONAL GUIDANCE FROM THE ROOM ADMIN: ${rc.additional_guidance}`;
+    }
+
+    return `You are an impartial judge for a secret exchange platform.
+You must decide if two secrets match based on the CRITERIA below.
+
+${criteria}
+
+Secret A: "${secretA}"
+Secret B: "${secretB}"
+
+Respond with JSON only.
+The "user_summary" is CRITICAL: it must be a short, safe sentence (10-15 words) that explains the relationship between the secrets WITHOUT revealing their specific contents.
+Example summaries: "Both secrets share a similar level of personal vulnerability," or "These secrets appear to be about entirely unrelated topics."
+
+{
+  "match": true/false,
+  "confidence": 0.0-1.0,
+  "reasoning": "detailed explanation for why they match or don't, referencing content for the admin",
+  "user_summary": "safe, vague summary for the users involved"
+}`;
+  }
+
+  // Legacy fallback: old-style match_mode
   const presets = {
     semantic: `Determine if these secrets are essentially about the same thing — not word-for-word identical, but equivalent in meaning and intent. For example, "I like you" and "I have a crush on you" would match.`,
     seriousness: `Determine if these secrets have a similar level of "seriousness" or "gravity." They don't need to be about the same topic, but they should feel like they carry equal weight (e.g., both are lighthearted confessions, or both are deep life-changing secrets).`,
@@ -30,7 +97,7 @@ export async function compareSecrets(config, secretA, secretB, customPrompt, mat
 
   const instructions = presets[matchMode] || presets.semantic;
 
-  const prompt = `You are an impartial judge for a secret exchange platform. 
+  return `You are an impartial judge for a secret exchange platform.
 You must decide if two secrets match based on the CRITERIA below.
 
 CRITERIA:
@@ -39,8 +106,8 @@ ${instructions}
 Secret A: "${secretA}"
 Secret B: "${secretB}"
 
-Respond with JSON only. 
-The "user_summary" is CRITICAL: it must be a short, safe sentence (10-15 words) that explains the relationship between the secrets WITHOUT revealing their specific contents. 
+Respond with JSON only.
+The "user_summary" is CRITICAL: it must be a short, safe sentence (10-15 words) that explains the relationship between the secrets WITHOUT revealing their specific contents.
 Example summaries: "Both secrets share a similar level of personal vulnerability," or "These secrets appear to be about entirely unrelated topics."
 
 {
@@ -49,6 +116,12 @@ Example summaries: "Both secrets share a similar level of personal vulnerability
   "reasoning": "detailed explanation for why they match or don't, referencing content for the admin",
   "user_summary": "safe, vague summary for the users involved"
 }`;
+}
+
+export async function compareSecrets(config, secretA, secretB, customPrompt, matchMode = 'semantic', roomConfig = null) {
+  const { type, client } = getClient(config);
+
+  const prompt = buildComparisonPrompt(secretA, secretB, roomConfig, customPrompt, matchMode);
 
   if (type === 'openai') {
     try {

@@ -450,3 +450,282 @@ a {
   padding: $space-2xl;
   color: $text-muted;
 }
+
+// Modal
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $space-lg;
+}
+
+.modal-content {
+  background: $bg-secondary;
+  border: 1px solid $border;
+  border-radius: $radius-lg;
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+
+  scrollbar-width: thin;
+  scrollbar-color: $border transparent;
+}
+
+.modal-header {
+  padding: $space-xl $space-xl $space-md;
+  border-bottom: 1px solid $border;
+
+  h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: $text-primary;
+    margin-bottom: $space-xs;
+  }
+
+  p {
+    font-size: 0.85rem;
+    color: $text-secondary;
+  }
+}
+
+.modal-body {
+  padding: $space-lg $space-xl;
+  display: flex;
+  flex-direction: column;
+  gap: $space-xl;
+}
+
+.modal-footer {
+  padding: $space-md $space-xl $space-xl;
+  border-top: 1px solid $border;
+  display: flex;
+  justify-content: flex-end;
+  gap: $space-md;
+}
+
+.modal-section {
+  &__label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin-bottom: $space-xs;
+  }
+
+  &__hint {
+    font-size: 0.78rem;
+    color: $text-muted;
+    margin-bottom: $space-md;
+    line-height: 1.4;
+  }
+}
+
+.modal-textarea {
+  width: 100%;
+  padding: $space-sm $space-md;
+  background: $bg-primary;
+  border: 1px solid $border;
+  border-radius: $radius-sm;
+  color: $text-primary;
+  font-family: $font-body;
+  font-size: 0.9rem;
+  resize: vertical;
+  margin-top: $space-sm;
+  transition: border-color 0.2s;
+
+  &:focus {
+    outline: none;
+    border-color: $accent;
+    box-shadow: 0 0 0 3px $accent-glow;
+  }
+
+  &::placeholder { color: $text-muted; }
+}
+
+// Option cards (purpose selection)
+.option-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: $space-sm;
+
+  @media (max-width: $mobile) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.option-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: $space-md;
+  background: rgba($bg-card, 0.5);
+  border: 1px solid $border;
+  border-radius: $radius-md;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  color: $text-primary;
+  font-family: $font-body;
+
+  &:hover {
+    border-color: rgba($accent, 0.5);
+    background: rgba($bg-card, 0.8);
+  }
+
+  &--selected {
+    border-color: $accent;
+    background: rgba($accent, 0.1);
+    box-shadow: 0 0 0 1px $accent;
+  }
+
+  &__icon {
+    font-size: 1.3rem;
+    margin-bottom: 2px;
+  }
+
+  &__label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  &__desc {
+    font-size: 0.72rem;
+    color: $text-muted;
+    line-height: 1.3;
+  }
+}
+
+// Option rows (strategy selection)
+.option-list {
+  display: flex;
+  flex-direction: column;
+  gap: $space-xs;
+}
+
+.option-row {
+  display: flex;
+  align-items: flex-start;
+  gap: $space-md;
+  padding: $space-sm $space-md;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  color: $text-primary;
+  font-family: $font-body;
+  width: 100%;
+
+  &:hover {
+    background: rgba($bg-card, 0.5);
+    border-color: $border;
+  }
+
+  &--selected {
+    background: rgba($accent, 0.08);
+    border-color: rgba($accent, 0.4);
+  }
+
+  &__radio {
+    font-size: 1rem;
+    color: $text-muted;
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+
+  &--selected &__radio {
+    color: $accent-light;
+  }
+
+  &__label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  &__desc {
+    font-size: 0.75rem;
+    color: $text-muted;
+    line-height: 1.3;
+  }
+}
+
+// Strictness slider
+.strictness-control {
+  padding: $space-sm 0;
+}
+
+.strictness-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: $space-sm;
+  font-size: 0.75rem;
+  color: $text-muted;
+}
+
+.strictness-value {
+  font-weight: 600;
+  color: $accent-light;
+  font-size: 0.85rem;
+}
+
+.strictness-slider {
+  width: 100%;
+  -webkit-appearance: none;
+  background: $border;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+  border: none;
+  padding: 0;
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    background: $accent;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 8px $accent-glow;
+  }
+
+  &::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: $accent;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+}
+
+.strictness-dots {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 8px;
+  margin-top: $space-xs;
+}
+
+.strictness-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: $border;
+  transition: all 0.2s;
+
+  &--active {
+    background: $accent;
+    box-shadow: 0 0 6px $accent-glow;
+  }
+}
