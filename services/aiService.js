@@ -117,18 +117,18 @@ export async function testConnection(config) {
   if (type === 'openai') {
     const res = await client.chat.completions.create({
       model: config.model || 'gpt-4o',
-      messages: [{ role: 'user', content: 'Reply with the word "ok" only.' }],
-      max_tokens: 5,
+      messages: [{ role: 'user', content: 'Reply with exactly one word: ok' }],
+      max_tokens: 10,
     });
-    return { success: true, reply: res.choices[0].message.content };
+    return { success: true, reply: res.choices[0].message.content.trim() };
   }
 
   const res = await client.messages.create({
     model: config.model || 'claude-sonnet-4-5-20250514',
-    max_tokens: 5,
-    messages: [{ role: 'user', content: 'Reply with the word "ok" only.' }],
+    max_tokens: 10,
+    messages: [{ role: 'user', content: 'Reply with exactly one word: ok' }],
   });
-  return { success: true, reply: res.content[0].text };
+  return { success: true, reply: res.content[0].text.trim() };
 }
 
 export function shuffleWithSecret(fakes, realSecret) {
