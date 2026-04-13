@@ -59,16 +59,21 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
       [groupId]
     );
 
-    // Comparison results involving my secrets (user_summary only, no full reasoning)
+    // Comparison results (vague summaries)
+    // ROOM ADMIN sees everything in the group. Regular members only see comparisons involving their own secrets.
+    const isAdminOfGroup = membership[0].role === 'admin';
     const { rows: myComparisons } = await pool.query(
       `SELECT c.id, c.matched, c.confidence, c.user_summary, c.created_at,
         CASE WHEN c.secret_a_id IN (SELECT id FROM secrets WHERE central_user_id = $2) THEN c.secret_a_id ELSE c.secret_b_id END as my_secret_id
        FROM comparisons c
        WHERE c.group_id = $1
-         AND (c.secret_a_id IN (SELECT id FROM secrets WHERE central_user_id = $2)
-           OR c.secret_b_id IN (SELECT id FROM secrets WHERE central_user_id = $2))
+         AND (
+           $3 = TRUE 
+           OR c.secret_a_id IN (SELECT id FROM secrets WHERE central_user_id = $2)
+           OR c.secret_b_id IN (SELECT id FROM secrets WHERE central_user_id = $2)
+         )
        ORDER BY c.created_at DESC`,
-      [groupId, req.user.central_user_id]
+      [groupId, req.user.central_user_id, isAdminOfGroup]
     );
 
     res.json({
@@ -185,6 +190,7 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
     // Compare all pairs
     const newMatches = [];
     const allResults = [];
+    let errors = 0;
     for (let i = 0; i < submitted.length; i++) {
       for (let j = i + 1; j < submitted.length; j++) {
         const a = submitted[i];
@@ -200,18 +206,19 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
         if (existingMatch[0]) continue;
 
         try {
-          // PASS match_mode AND ai_prompt
           const result = await compareSecrets(aiConfig, a.content, b.content, group.ai_prompt, group.match_mode);
+
+          const isMatch = result.match && result.confidence >= 0.6;
 
           await pool.query(
             `INSERT INTO comparisons (group_id, secret_a_id, secret_b_id, matched, confidence, ai_reasoning, user_summary)
              VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-            [groupId, a.id, b.id, result.match && result.confidence >= 0.6, result.confidence, result.reasoning, result.user_summary || '']
+            [groupId, a.id, b.id, isMatch, result.confidence, result.reasoning, result.user_summary || '']
           );
 
-          allResults.push({ matched: result.match && result.confidence >= 0.6, confidence: result.confidence, user_summary: result.user_summary });
+          allResults.push({ matched: isMatch, confidence: result.confidence, user_summary: result.user_summary });
 
-          if (result.match && result.confidence >= 0.6) {
+          if (isMatch) {
             let obfuscatedA = [a.content];
             let obfuscatedB = [b.content];
 
@@ -231,16 +238,27 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
             );
 
             await pool.query("UPDATE secrets SET status = 'matched' WHERE id IN ($1, $2)", [a.id, b.id]);
-
             newMatches.push({ match, reasoning: result.reasoning, confidence: result.confidence });
           }
         } catch (aiErr) {
           console.error('AI comparison failed:', aiErr.message);
+          errors++;
+          // Insert a failure record so we know it was attempted
+          await pool.query(
+            `INSERT INTO comparisons (group_id, secret_a_id, secret_b_id, matched, confidence, ai_reasoning, user_summary)
+             VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+            [groupId, a.id, b.id, false, 0, aiErr.message, 'Intelligence analysis failed for this pair.']
+          );
         }
       }
     }
 
-    res.json({ matches: newMatches, results: allResults, compared: submitted.length });
+    res.json({ 
+      matches: newMatches, 
+      results: allResults, 
+      compared: submitted.length,
+      errors: errors > 0 ? errors : undefined
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

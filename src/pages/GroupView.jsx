@@ -119,11 +119,16 @@ export default function GroupView() {
     setError(''); setSuccess('');
     try {
       const data = await triggerCompare(id);
+      let msg = `Compared ${data.compared} secrets.`;
       if (data.matches.length > 0) {
-        setSuccess(`Vault opened! ${data.matches.length} match found.`);
+        msg += ` ${data.matches.length} match found!`;
       } else {
-        setSuccess(`Compared ${data.compared} secrets — no matches.`);
+        msg += ` No matches found.`;
       }
+      if (data.errors) {
+        msg += ` (${data.errors} AI failures logged)`;
+      }
+      setSuccess(msg);
       await load();
       if (showAdminLogs) loadAdminLogs();
     } catch (err) {
