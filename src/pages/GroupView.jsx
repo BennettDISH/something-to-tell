@@ -307,8 +307,9 @@ export default function GroupView() {
                 const isA = m.user_a_id === user.central_user_id;
                 const myName = isA ? m.user_a_name : m.user_b_name;
                 const theirName = isA ? m.user_b_name : m.user_a_name;
-                const myItems = isA ? m.obfuscated_a : m.obfuscated_b;
-                const theirItems = isA ? m.obfuscated_b : m.obfuscated_a;
+                const toArray = (v) => Array.isArray(v) ? v : [v];
+                const myItems = toArray(isA ? m.obfuscated_a : m.obfuscated_b);
+                const theirItems = toArray(isA ? m.obfuscated_b : m.obfuscated_a);
 
                 return (
                   <div key={m.id} className="vault-match glass-card" style={{ border: '1px solid rgba(0, 184, 148, 0.4)' }}>
