@@ -209,16 +209,15 @@ export default function GroupView() {
                   </button>
                 </div>
 
-                <button 
-                  className="btn btn--secondary btn--full" 
-                  style={{ padding: '6px', fontSize: '0.75rem', borderStyle: 'dashed' }}
-                  disabled={!user.is_admin}
-                  onClick={() => setShowAdminLogs(!showAdminLogs)}
-                  title={!user.is_admin ? "Only site admins can view deep intel" : ""}
-                >
-                  {showAdminLogs ? 'HIDE DEEP INTEL' : 'VIEW DEEP INTEL'}
-                </button>
-                {!user.is_admin && <div style={{ fontSize: '0.65rem', color: '#555570', textAlign: 'center', marginTop: '4px' }}>SITE ADMIN ONLY</div>}
+                {user.is_admin && (
+                  <button 
+                    className="btn btn--secondary btn--full" 
+                    style={{ padding: '6px', fontSize: '0.75rem', borderStyle: 'dashed', marginTop: '0.5rem' }}
+                    onClick={() => setShowAdminLogs(!showAdminLogs)}
+                  >
+                    {showAdminLogs ? 'HIDE DEEP INTEL' : 'VIEW DEEP INTEL'}
+                  </button>
+                )}
               </div>
             )}
           </div>
