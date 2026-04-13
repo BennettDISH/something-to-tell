@@ -34,6 +34,10 @@ export const submitSecret = (groupId, content, obfuscation_level) =>
 export const deleteSecret = (id) =>
   request(`/api/secrets/${id}`, { method: 'DELETE' });
 
+// Admin
+export const adminGetGroups = () => request('/api/admin/groups');
+export const adminGetGroup = (id) => request(`/api/admin/groups/${id}`);
+
 // AI Config
 export const getAiConfig = () => request('/api/ai/config');
 export const saveAiConfig = (provider, api_key, model) =>

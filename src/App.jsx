@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import CreateGroup from './pages/CreateGroup';
 import GroupView from './pages/GroupView';
 import Settings from './pages/Settings';
+import Admin from './pages/Admin';
 
 function Nav() {
   const { user, logout } = useAuth();
@@ -23,6 +24,7 @@ function Nav() {
       <div className="nav__links">
         <Link to="/" className={isActive('/')}>Groups</Link>
         <Link to="/settings" className={isActive('/settings')}>Settings</Link>
+        {user.is_admin && <Link to="/admin" className={isActive('/admin')}>Admin</Link>}
         <button onClick={logout} className="btn btn--secondary" style={{ padding: '4px 12px', fontSize: '0.85rem' }}>
           Sign Out
         </button>
@@ -43,6 +45,7 @@ export default function App() {
         <Route path="/groups/create" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
         <Route path="/groups/:id" element={<ProtectedRoute><GroupView /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
       </Routes>
     </div>
   );

@@ -10,6 +10,7 @@ import authRoutes from './routes/auth.js';
 import groupRoutes from './routes/groups.js';
 import secretRoutes from './routes/secrets.js';
 import aiRoutes from './routes/ai.js';
+import adminRoutes from './routes/admin.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -25,6 +26,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/secrets', secretRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
