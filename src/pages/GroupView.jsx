@@ -13,12 +13,12 @@ const PURPOSES = [
 ];
 
 const STRATEGIES = [
-  { value: 'topic', label: 'Same Topic', description: 'Both secrets are about the same subject, even if worded differently' },
+  { value: 'topic', label: 'Same Topic', description: 'Secrets are about the same subject, even if worded differently' },
   { value: 'feeling', label: 'Same Feeling', description: 'Both express the same core emotion — love, guilt, excitement, shame' },
   { value: 'weight', label: 'Same Weight', description: 'Both carry a similar level of seriousness or gravity' },
-  { value: 'vibe', label: 'Same Vibe', description: 'Loose, intuitive matching based on overall energy and tone' },
-  { value: 'exact', label: 'Near-Identical', description: 'Only match when secrets are about the exact same specific thing' },
-  { value: 'custom', label: 'Custom Logic', description: 'Write your own matching rules for the AI' },
+  { value: 'vibe', label: 'Same Vibe', description: 'Loose, intuitive reveal based on overall energy and tone' },
+  { value: 'exact', label: 'Near-Identical', description: 'Only reveal when secrets are about the exact same specific thing' },
+  { value: 'custom', label: 'Custom Logic', description: 'Write your own rules for when secrets get revealed' },
 ];
 
 const STRICTNESS_LABELS = ['', 'Very Loose', 'Loose', 'Balanced', 'Strict', 'Very Strict'];
@@ -29,6 +29,7 @@ function RulesModal({ roomConfig, onSave, onClose }) {
   const [strategy, setStrategy] = useState(roomConfig?.strategy || '');
   const [customStrategy, setCustomStrategy] = useState(roomConfig?.custom_strategy || '');
   const [strictness, setStrictness] = useState(roomConfig?.strictness || 3);
+  const [deniability, setDeniability] = useState(roomConfig?.deniability ?? 0);
   const [additionalGuidance, setAdditionalGuidance] = useState(roomConfig?.additional_guidance || '');
   const [saving, setSaving] = useState(false);
 
@@ -40,6 +41,7 @@ function RulesModal({ roomConfig, onSave, onClose }) {
       strategy,
       custom_strategy: strategy === 'custom' ? customStrategy : '',
       strictness,
+      deniability,
       additional_guidance: additionalGuidance,
     });
     setSaving(false);
@@ -84,8 +86,8 @@ function RulesModal({ roomConfig, onSave, onClose }) {
 
           {/* STRATEGY */}
           <div className="modal-section">
-            <div className="modal-section__label">What counts as a match?</div>
-            <div className="modal-section__hint">How should the AI decide if two secrets are related?</div>
+            <div className="modal-section__label">When should secrets be revealed?</div>
+            <div className="modal-section__hint">What relationship between two secrets should trigger them both being revealed?</div>
             <div className="option-list">
               {STRATEGIES.map((s) => (
                 <button
@@ -138,6 +140,27 @@ function RulesModal({ roomConfig, onSave, onClose }) {
             </div>
           </div>
 
+          {/* PLAUSIBLE DENIABILITY */}
+          <div className="modal-section">
+            <div className="modal-section__label">Plausible Deniability</div>
+            <div className="modal-section__hint">When secrets are revealed, they can be mixed with AI-generated decoys so nobody knows which one is real. This applies to everyone in the room equally.</div>
+            <div className="strictness-control">
+              <div className="strictness-labels">
+                <span>None</span>
+                <span className="strictness-value">{deniability === 0 ? 'Off — secrets shown directly' : `${deniability} decoy${deniability === 1 ? '' : 's'} per secret`}</span>
+                <span>Maximum</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="10"
+                value={deniability}
+                onChange={(e) => setDeniability(+e.target.value)}
+                className="strictness-slider"
+              />
+            </div>
+          </div>
+
           {/* ADDITIONAL GUIDANCE */}
           <div className="modal-section">
             <div className="modal-section__label">Additional Guidance <span style={{ fontWeight: 400, color: '#555570' }}>(optional)</span></div>
@@ -171,6 +194,7 @@ function getRuleSummary(rc) {
   if (purposeLabel) parts.push(purposeLabel);
   if (strategyLabel) parts.push(strategyLabel);
   if (rc.strictness) parts.push(STRICTNESS_LABELS[rc.strictness]);
+  if (rc.deniability > 0) parts.push(`${rc.deniability} decoys`);
   return parts.join(' / ');
 }
 
@@ -188,7 +212,6 @@ export default function GroupView() {
   const [showAdminLogs, setShowAdminLogs] = useState(false);
 
   const [newSecret, setNewSecret] = useState('');
-  const [obfLevel, setObfLevel] = useState(3);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
@@ -242,7 +265,7 @@ export default function GroupView() {
     if (!newSecret.trim()) return;
     setError(''); setSuccess('');
     try {
-      await addSecret(id, newSecret.trim(), obfLevel);
+      await addSecret(id, newSecret.trim(), 0);
       setNewSecret('');
       setSuccess('Secret sealed. Submit it when you\'re ready.');
       await load();
@@ -525,21 +548,12 @@ export default function GroupView() {
                 <textarea
                   value={newSecret}
                   onChange={(e) => setNewSecret(e.target.value)}
-                  placeholder="Sealing a secret... It will only be revealed based on the group's intelligence rules."
+                  placeholder="Sealing a secret... It will only be revealed based on the room's intelligence rules."
                   required
                   style={{ background: 'rgba(10, 10, 15, 0.8)', fontSize: '1.1rem', minHeight: '100px' }}
                 />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 150px', gap: '2rem', alignItems: 'end' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label>Plausible Deniability ({obfLevel} Decoys)</label>
-                  <div className="obfuscation-control">
-                    <input type="range" min="0" max="10" value={obfLevel} onChange={(e) => setObfLevel(+e.target.value)} />
-                    <span>{obfLevel}</span>
-                  </div>
-                </div>
-                <button type="submit" className="btn btn--primary btn--full" style={{ padding: '12px' }} disabled={!newSecret.trim()}>SEAL SECRET</button>
-              </div>
+              <button type="submit" className="btn btn--primary btn--full" style={{ padding: '12px' }} disabled={!newSecret.trim()}>SEAL SECRET</button>
             </form>
           </section>
 
@@ -554,7 +568,6 @@ export default function GroupView() {
                       <span style={{ fontFamily: 'monospace', fontSize: '0.95rem', color: '#e8e8f0' }}>{s.content}</span>
                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
                         <span className={`badge badge--${s.status}`}>{s.status.toUpperCase()}</span>
-                        <span className="badge badge--count">{s.obfuscation_level} DECOYS</span>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>

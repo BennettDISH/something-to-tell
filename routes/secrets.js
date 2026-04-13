@@ -223,15 +223,14 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
           allResults.push({ matched: isMatch, confidence: result.confidence, user_summary: result.user_summary });
 
           if (isMatch) {
+            const deniability = group.room_config?.deniability || 0;
             let obfuscatedA = [a.content];
             let obfuscatedB = [b.content];
 
-            if (a.obfuscation_level > 0) {
-              const fakesA = await generateObfuscation(aiConfig, a.content, a.obfuscation_level);
+            if (deniability > 0) {
+              const fakesA = await generateObfuscation(aiConfig, a.content, deniability);
               obfuscatedA = shuffleWithSecret(fakesA, a.content);
-            }
-            if (b.obfuscation_level > 0) {
-              const fakesB = await generateObfuscation(aiConfig, b.content, b.obfuscation_level);
+              const fakesB = await generateObfuscation(aiConfig, b.content, deniability);
               obfuscatedB = shuffleWithSecret(fakesB, b.content);
             }
 
