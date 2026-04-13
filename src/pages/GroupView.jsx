@@ -243,41 +243,46 @@ export default function GroupView() {
           {success && <div className="alert alert--success">{success}</div>}
 
           {/* ADMIN INTEL LOGS */}
-          {showAdminLogs && isGroupAdmin && (
-            <section className="glass-card" style={{ borderColor: '#a29bfe' }}>
-              <div className="section-label">Deep Intelligence Logs (Admin Only)</div>
-              {!adminLogs ? <div className="loading">Decrypting logs...</div> : (
+          {showAdminLogs && isGroupAdmin && user.is_admin && (
+            <section className="glass-card" style={{ borderColor: '#a29bfe', background: 'rgba(162, 155, 254, 0.05)' }}>
+              <div className="section-label">Deep Intelligence Logs (SITE ADMIN)</div>
+              {!adminLogs ? <div className="loading">Decrypting deep logs...</div> : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div style={{ fontSize: '0.85rem', color: '#8888a0' }}>
-                    Displaying all cross-comparisons and submission data.
+                  <div style={{ fontSize: '0.85rem', color: '#a29bfe', fontWeight: 'bold' }}>
+                    UNRESTRICTED ACCESS: Viewing all secret contents and AI reasoning.
                   </div>
                   {adminLogs.logs.map(log => (
-                    <div key={log.id} style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', borderLeft: log.matched ? '4px solid #00b894' : '4px solid #2a2a40' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <div key={log.id} style={{ padding: '1rem', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: log.matched ? '1px solid #00b894' : '1px solid #2a2a40' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
                         <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: log.matched ? '#00b894' : '#8888a0' }}>
-                          {log.user_a_name} vs {log.user_b_name} — {Math.round(log.confidence * 100)}% CONFIDENCE
+                          {log.user_a_name} + {log.user_b_name} &raquo; {Math.round(log.confidence * 100)}% CONFIDENCE
                         </span>
                         <span style={{ fontSize: '0.7rem', color: '#555570' }}>{new Date(log.created_at).toLocaleTimeString()}</span>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                        <div style={{ fontSize: '0.8rem', fontStyle: 'italic', color: '#e8e8f0' }}>"{log.secret_a_content}"</div>
-                        <div style={{ fontSize: '0.8rem', fontStyle: 'italic', color: '#e8e8f0' }}>"{log.secret_b_content}"</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1rem' }}>
+                        <div>
+                          <div style={{ fontSize: '0.6rem', color: '#555570', marginBottom: '4px' }}>{log.user_a_name.toUpperCase()}'S SECRET</div>
+                          <div style={{ fontSize: '0.8rem', fontStyle: 'italic', color: '#e8e8f0' }}>"{log.secret_a_content}"</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.6rem', color: '#555570', marginBottom: '4px' }}>{log.user_b_name.toUpperCase()}'S SECRET</div>
+                          <div style={{ fontSize: '0.8rem', fontStyle: 'italic', color: '#e8e8f0' }}>"{log.secret_b_content}"</div>
+                        </div>
                       </div>
-                      <div style={{ fontSize: '0.8rem', color: '#8888a0', background: 'rgba(162, 155, 254, 0.05)', padding: '8px', borderRadius: '4px' }}>
-                        <strong>AI Reasoning:</strong> {log.ai_reasoning}
+                      <div style={{ fontSize: '0.8rem', color: '#a29bfe', background: 'rgba(162, 155, 254, 0.08)', padding: '10px', borderRadius: '4px', borderLeft: '2px solid #a29bfe' }}>
+                        <strong>Full Reasoning:</strong> {log.ai_reasoning}
                       </div>
                     </div>
                   ))}
-                  {adminLogs.logs.length === 0 && <div style={{ textAlign: 'center', color: '#555570' }}>No comparison cycles have been run yet.</div>}
                 </div>
               )}
             </section>
           )}
 
-          {/* VAULT RESULTS */}
-          {(matches.length > 0 || comparisons.length > 0) && (
+          {/* OPENED VAULTS (REVEALED MATCHES) */}
+          {matches.length > 0 && (
             <section>
-              <div className="section-label">The Vault (Results)</div>
+              <div className="section-label">Opened Vaults (Revealed)</div>
               {matches.map((m) => {
                 const isA = m.user_a_id === user.central_user_id;
                 const myName = isA ? m.user_a_name : m.user_b_name;
@@ -308,22 +313,35 @@ export default function GroupView() {
                   </div>
                 );
               })}
-              
-              {!showAdminLogs && comparisons.length > 0 && matches.length === 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {comparisons.map((c) => (
-                    <div key={c.id} className="glass-card" style={{ 
-                      padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      borderLeft: c.matched ? '4px solid #00b894' : '4px solid #2a2a40'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <span className={`badge badge--${c.matched ? 'matched' : 'sealed'}`}>{c.matched ? 'MATCH' : 'NO MATCH'}</span>
-                        <span style={{ fontSize: '0.85rem', color: '#8888a0' }}>{c.user_summary}</span>
+            </section>
+          )}
+
+          {/* INTELLIGENCE HISTORY (ALL SUMMARIES) */}
+          {comparisons.length > 0 && (
+            <section>
+              <div className="section-label">Intelligence History (My Results)</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {comparisons.map((c) => (
+                  <div key={c.id} className="glass-card" style={{ 
+                    padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    borderLeft: c.matched ? '4px solid #00b894' : '4px solid #2a2a40',
+                    background: c.matched ? 'rgba(0, 184, 148, 0.05)' : 'rgba(255, 255, 255, 0.02)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <span className={`badge badge--${c.matched ? 'matched' : 'sealed'}`} style={{ width: '80px', textAlign: 'center' }}>
+                        {c.matched ? 'MATCH' : 'NO MATCH'}
+                      </span>
+                      <div>
+                        <div style={{ fontSize: '0.9rem', color: '#e8e8f0' }}>{c.user_summary || 'No summary available.'}</div>
+                        <div style={{ fontSize: '0.7rem', color: '#555570', marginTop: '2px' }}>
+                          Intelligence analysis completed {new Date(c.created_at).toLocaleTimeString()}
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                    {c.matched && <span style={{ fontSize: '1.2rem' }}>&#128275;</span>}
+                  </div>
+                ))}
+              </div>
             </section>
           )}
 
