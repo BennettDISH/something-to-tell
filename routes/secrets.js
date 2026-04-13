@@ -4,6 +4,7 @@ import { authenticate, isAdmin } from '../middleware/auth.js';
 import { getUserAiConfig, compareSecrets, generateObfuscation, shuffleWithSecret } from '../services/aiService.js';
 
 const router = Router();
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Get my secrets in a group + matches + submission counts
 router.get('/group/:groupId', authenticate, async (req, res) => {
@@ -206,6 +207,9 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
         if (existingMatch[0]) continue;
 
         try {
+          // Add a small delay between calls to help with rate limits
+          if (allResults.length > 0 || errors > 0) await sleep(500);
+
           const result = await compareSecrets(aiConfig, a.content, b.content, group.ai_prompt, group.match_mode);
 
           const isMatch = result.match && result.confidence >= 0.6;
@@ -243,11 +247,17 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
         } catch (aiErr) {
           console.error('AI comparison failed:', aiErr.message);
           errors++;
+          
+          let userMsg = 'Intelligence analysis failed for this pair.';
+          if (aiErr.message.includes('429') || aiErr.message.toLowerCase().includes('quota')) {
+            userMsg = 'AI Rate Limit/Quota exceeded. Please check your API billing or wait before retrying.';
+          }
+
           // Insert a failure record so we know it was attempted
           await pool.query(
             `INSERT INTO comparisons (group_id, secret_a_id, secret_b_id, matched, confidence, ai_reasoning, user_summary)
              VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-            [groupId, a.id, b.id, false, 0, aiErr.message, 'Intelligence analysis failed for this pair.']
+            [groupId, a.id, b.id, false, 0, aiErr.message, userMsg]
           );
         }
       }
