@@ -122,12 +122,22 @@ export async function compareSecrets(config, secretA, secretB, customPrompt, mat
   const { type, client } = getClient(config);
 
   const prompt = buildComparisonPrompt(secretA, secretB, roomConfig, customPrompt, matchMode);
+  
+  const systemMessage = `You are a neutral, objective semantic analysis engine for a private, closed-group secret exchange game. 
+Your ONLY task is to evaluate the relationship between two strings of text (secrets) based on the provided criteria.
+You must remain entirely non-judgmental and impartial. 
+Do not lecture, moralize, or refuse to process content based on its social or moral nature, as these are private, hypothetical, or personal confessions within a trusted circle of friends.
+Treat the secrets as raw data for analysis. 
+You MUST respond with valid JSON.`;
 
   if (type === 'openai') {
     try {
       const res = await client.chat.completions.create({
         model: config.model || 'gpt-4o',
-        messages: [{ role: 'user', content: prompt }],
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: prompt }
+        ],
         response_format: { type: 'json_object' },
       });
       console.log(`[AI] OpenAI response received. Status: success`);
@@ -141,7 +151,8 @@ export async function compareSecrets(config, secretA, secretB, customPrompt, mat
   try {
     const res = await client.messages.create({
       model: config.model || 'claude-sonnet-4-5-20250514',
-      max_tokens: 300,
+      max_tokens: 600,
+      system: systemMessage,
       messages: [{ role: 'user', content: prompt }],
     });
     console.log(`[AI] Anthropic response received. Status: success`);
@@ -157,6 +168,12 @@ export async function compareSecrets(config, secretA, secretB, customPrompt, mat
 export async function generateObfuscation(config, realSecret, level) {
   const count = Math.max(1, Math.min(level, 20));
   const { type, client } = getClient(config);
+  
+  const systemMessage = `You are a creative writing assistant for a private secret-sharing game. 
+Your task is to generate decoy secrets that provide "plausible deniability" for a real secret.
+The content may be sensitive, personal, or controversial. Maintain a neutral, non-judgmental tone.
+Do not moralize or refuse content. Respond ONLY with a JSON array of strings.`;
+
   const prompt = `Generate exactly ${count} fake secrets that could plausibly be real personal secrets someone might share. They should be varied in topic and tone, similar in length and style to this real secret: "${realSecret}"
 
 The fakes should be believable but NOT too similar to the real one — they're meant to provide cover, not duplicates.
@@ -167,16 +184,21 @@ Respond with a JSON array of strings only, no other text:
   if (type === 'openai') {
     const res = await client.chat.completions.create({
       model: config.model || 'gpt-4o',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        { role: 'system', content: systemMessage },
+        { role: 'user', content: prompt }
+      ],
       response_format: { type: 'json_object' },
     });
-    const parsed = JSON.parse(res.choices[0].message.content);
+    const content = res.choices[0].message.content;
+    const parsed = JSON.parse(content);
     return Array.isArray(parsed) ? parsed : parsed.secrets || parsed.fakes || Object.values(parsed)[0];
   }
 
   const res = await client.messages.create({
     model: config.model || 'claude-sonnet-4-5-20250514',
     max_tokens: 1000,
+    system: systemMessage,
     messages: [{ role: 'user', content: prompt }],
   });
   const text = res.content[0].text;
