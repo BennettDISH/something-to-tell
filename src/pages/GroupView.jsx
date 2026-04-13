@@ -24,13 +24,14 @@ const STRATEGIES = [
 const STRICTNESS_LABELS = ['', 'Very Loose', 'Loose', 'Balanced', 'Strict', 'Very Strict'];
 
 function RulesModal({ roomConfig, onSave, onClose }) {
-  const [purpose, setPurpose] = useState(roomConfig?.purpose || '');
+  const [purpose, setPurpose] = useState(roomConfig?.purpose || 'fun');
   const [customPurpose, setCustomPurpose] = useState(roomConfig?.custom_purpose || '');
-  const [strategy, setStrategy] = useState(roomConfig?.strategy || '');
+  const [strategy, setStrategy] = useState(roomConfig?.strategy || 'topic');
   const [customStrategy, setCustomStrategy] = useState(roomConfig?.custom_strategy || '');
   const [strictness, setStrictness] = useState(roomConfig?.strictness || 3);
   const [deniability, setDeniability] = useState(roomConfig?.deniability ?? 0);
   const [additionalGuidance, setAdditionalGuidance] = useState(roomConfig?.additional_guidance || '');
+  const [activeTab, setActiveTab] = useState('context');
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -47,155 +48,281 @@ function RulesModal({ roomConfig, onSave, onClose }) {
     setSaving(false);
   };
 
+  const getPersonaSummary = () => {
+    const p = PURPOSES.find(x => x.value === purpose)?.label || 'Custom';
+    const s = STRATEGIES.find(x => x.value === strategy)?.label || 'Custom Logic';
+    const strict = STRICTNESS_LABELS[strictness];
+    
+    return (
+      <div className="persona-preview">
+        <div className="persona-preview__header">AI JUDGE PERSONALITY</div>
+        <div className="persona-preview__content">
+          <div className="persona-preview__pill"><span>Context:</span> {p}</div>
+          <div className="persona-preview__pill"><span>Logic:</span> {s}</div>
+          <div className="persona-preview__pill"><span>Tone:</span> {strict}</div>
+          {deniability > 0 && <div className="persona-preview__pill persona-preview__pill--privacy"><span>Privacy:</span> {deniability} Decoys</div>}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-content">
+      <div className="modal-content modal-content--wide">
         <div className="modal-header">
-          <h2>Room Intelligence Rules</h2>
-          <p>Configure how the AI evaluates and matches secrets in this room.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <h2>Room Intelligence Rules</h2>
+              <p>Configure how the AI evaluates and matches secrets in this room.</p>
+            </div>
+            <button className="btn-close" onClick={onClose}>&times;</button>
+          </div>
         </div>
 
-        <div className="modal-body">
-          {/* PURPOSE */}
-          <div className="modal-section">
-            <div className="modal-section__label">What is this room for?</div>
-            <div className="modal-section__hint">This helps the AI understand the context and tone of secrets being shared.</div>
-            <div className="option-grid">
-              {PURPOSES.map((p) => (
-                <button
-                  key={p.value}
-                  className={`option-card ${purpose === p.value ? 'option-card--selected' : ''}`}
-                  onClick={() => setPurpose(p.value)}
-                >
-                  <span className="option-card__icon">{p.icon}</span>
-                  <span className="option-card__label">{p.label}</span>
-                  <span className="option-card__desc">{p.description}</span>
-                </button>
-              ))}
-            </div>
-            {purpose === 'custom' && (
-              <textarea
-                className="modal-textarea"
-                value={customPurpose}
-                onChange={(e) => setCustomPurpose(e.target.value)}
-                placeholder="Describe what this room is about and what kind of secrets people will be sharing..."
-                rows={3}
-              />
-            )}
+        <div className="modal-body--tabs">
+          <div className="modal-tabs">
+            <button 
+              className={`modal-tab ${activeTab === 'context' ? 'modal-tab--active' : ''}`}
+              onClick={() => setActiveTab('context')}
+            >
+              <span className="modal-tab__icon">🎯</span>
+              <span className="modal-tab__label">Context</span>
+            </button>
+            <button 
+              className={`modal-tab ${activeTab === 'matching' ? 'modal-tab--active' : ''}`}
+              onClick={() => setActiveTab('matching')}
+            >
+              <span className="modal-tab__icon">⚖️</span>
+              <span className="modal-tab__label">Matching</span>
+            </button>
+            <button 
+              className={`modal-tab ${activeTab === 'privacy' ? 'modal-tab--active' : ''}`}
+              onClick={() => setActiveTab('privacy')}
+            >
+              <span className="modal-tab__icon">🛡️</span>
+              <span className="modal-tab__label">Privacy</span>
+            </button>
+            <button 
+              className={`modal-tab ${activeTab === 'expert' ? 'modal-tab--active' : ''}`}
+              onClick={() => setActiveTab('expert')}
+            >
+              <span className="modal-tab__icon">🧠</span>
+              <span className="modal-tab__label">Expert</span>
+            </button>
           </div>
 
-          {/* STRATEGY */}
-          <div className="modal-section">
-            <div className="modal-section__label">When should secrets be revealed?</div>
-            <div className="modal-section__hint">What relationship between two secrets should trigger them both being revealed?</div>
-            <div className="option-list">
-              {STRATEGIES.map((s) => (
-                <button
-                  key={s.value}
-                  className={`option-row ${strategy === s.value ? 'option-row--selected' : ''}`}
-                  onClick={() => setStrategy(s.value)}
-                >
-                  <div className="option-row__radio">{strategy === s.value ? '\u25C9' : '\u25CB'}</div>
-                  <div>
-                    <div className="option-row__label">{s.label}</div>
-                    <div className="option-row__desc">{s.description}</div>
+          <div className="modal-tab-content">
+            {activeTab === 'context' && (
+              <div className="animate-in">
+                <div className="modal-section__label">What is this room for?</div>
+                <div className="modal-section__hint">This helps the AI understand the context and tone of secrets being shared.</div>
+                <div className="option-grid">
+                  {PURPOSES.map((p) => (
+                    <button
+                      key={p.value}
+                      className={`option-card ${purpose === p.value ? 'option-card--selected' : ''}`}
+                      onClick={() => setPurpose(p.value)}
+                    >
+                      <span className="option-card__icon">{p.icon}</span>
+                      <span className="option-card__label">{p.label}</span>
+                      <span className="option-card__desc">{p.description}</span>
+                    </button>
+                  ))}
+                </div>
+                {purpose === 'custom' && (
+                  <textarea
+                    className="modal-textarea"
+                    value={customPurpose}
+                    onChange={(e) => setCustomPurpose(e.target.value)}
+                    placeholder="Describe what this room is about and what kind of secrets people will be sharing..."
+                    rows={3}
+                  />
+                )}
+              </div>
+            )}
+
+            {activeTab === 'matching' && (
+              <div className="animate-in">
+                <div className="modal-section">
+                  <div className="modal-section__label">When should secrets be revealed?</div>
+                  <div className="modal-section__hint">What relationship between two secrets should trigger them both being revealed?</div>
+                  <div className="option-list">
+                    {STRATEGIES.map((s) => (
+                      <button
+                        key={s.value}
+                        className={`option-row ${strategy === s.value ? 'option-row--selected' : ''}`}
+                        onClick={() => setStrategy(s.value)}
+                      >
+                        <div className="option-row__radio">{strategy === s.value ? '●' : '○'}</div>
+                        <div>
+                          <div className="option-row__label">{s.label}</div>
+                          <div className="option-row__desc">{s.description}</div>
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                </button>
-              ))}
-            </div>
-            {strategy === 'custom' && (
-              <textarea
-                className="modal-textarea"
-                value={customStrategy}
-                onChange={(e) => setCustomStrategy(e.target.value)}
-                placeholder="Describe your matching logic... e.g. 'Match if both secrets are something the person wants to tell a specific other person'"
-                rows={3}
-              />
+                  {strategy === 'custom' && (
+                    <textarea
+                      className="modal-textarea"
+                      value={customStrategy}
+                      onChange={(e) => setCustomStrategy(e.target.value)}
+                      placeholder="Describe your matching logic... e.g. 'Match if both secrets are something the person wants to tell a specific other person'"
+                      rows={3}
+                    />
+                  )}
+                </div>
+
+                <div className="modal-divider" />
+
+                <div className="modal-section">
+                  <div className="modal-section__label">Match Sensitivity</div>
+                  <div className="modal-section__hint">How generous or strict should the AI be when deciding if two secrets match?</div>
+                  <div className="strictness-control">
+                    <div className="strictness-labels">
+                      <span>Generous</span>
+                      <span className="strictness-value">{STRICTNESS_LABELS[strictness]}</span>
+                      <span>Strict</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="5"
+                      value={strictness}
+                      onChange={(e) => setStrictness(+e.target.value)}
+                      className="strictness-slider"
+                    />
+                    <div className="strictness-dots">
+                      {[1,2,3,4,5].map(n => (
+                        <span key={n} className={`strictness-dot ${strictness === n ? 'strictness-dot--active' : ''}`} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
-          </div>
 
-          {/* STRICTNESS */}
-          <div className="modal-section">
-            <div className="modal-section__label">Match Sensitivity</div>
-            <div className="modal-section__hint">How generous or strict should the AI be when deciding if two secrets match?</div>
-            <div className="strictness-control">
-              <div className="strictness-labels">
-                <span>Generous</span>
-                <span className="strictness-value">{STRICTNESS_LABELS[strictness]}</span>
-                <span>Strict</span>
-              </div>
-              <input
-                type="range"
-                min="1"
-                max="5"
-                value={strictness}
-                onChange={(e) => setStrictness(+e.target.value)}
-                className="strictness-slider"
-              />
-              <div className="strictness-dots">
-                {[1,2,3,4,5].map(n => (
-                  <span key={n} className={`strictness-dot ${strictness === n ? 'strictness-dot--active' : ''}`} />
-                ))}
-              </div>
-            </div>
-          </div>
+            {activeTab === 'privacy' && (
+              <div className="animate-in">
+                <div className="modal-section">
+                  <div className="modal-section__label">Plausible Deniability</div>
+                  <div className="modal-section__hint">
+                    When secrets are revealed, they can be mixed with AI-generated decoys so nobody knows which one is real.
+                    This adds a layer of protection for everyone in the room.
+                  </div>
+                  
+                  <div className="deniability-viz">
+                    <div className="viz-box viz-box--real">REAL SECRET</div>
+                    {Array.from({ length: Math.min(deniability, 4) }).map((_, i) => (
+                      <div key={i} className="viz-box viz-box--decoy" style={{ opacity: 1 - (i * 0.2) }}>DECOY</div>
+                    ))}
+                    {deniability > 4 && <div className="viz-more">+{deniability - 4} more</div>}
+                  </div>
 
-          {/* PLAUSIBLE DENIABILITY */}
-          <div className="modal-section">
-            <div className="modal-section__label">Plausible Deniability</div>
-            <div className="modal-section__hint">When secrets are revealed, they can be mixed with AI-generated decoys so nobody knows which one is real. This applies to everyone in the room equally.</div>
-            <div className="strictness-control">
-              <div className="strictness-labels">
-                <span>None</span>
-                <span className="strictness-value">{deniability === 0 ? 'Off — secrets shown directly' : `${deniability} decoy${deniability === 1 ? '' : 's'} per secret`}</span>
-                <span>Maximum</span>
+                  <div className="strictness-control">
+                    <div className="strictness-labels">
+                      <span>None</span>
+                      <span className="strictness-value">{deniability === 0 ? 'Off — secrets shown directly' : `${deniability} decoy${deniability === 1 ? '' : 's'} per secret`}</span>
+                      <span>Maximum</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="10"
+                      value={deniability}
+                      onChange={(e) => setDeniability(+e.target.value)}
+                      className="strictness-slider"
+                    />
+                  </div>
+                  
+                  <div className="privacy-warning">
+                    {deniability === 0 ? (
+                      <p>⚠️ <strong>Direct Reveal:</strong> Secrets will be shown exactly as submitted. High risk of identification.</p>
+                    ) : deniability < 3 ? (
+                      <p>🛡️ <strong>Light Protection:</strong> Decoys provide a small amount of cover, but patterns might still be visible.</p>
+                    ) : (
+                      <p>🛡️✨ <strong>Strong Privacy:</strong> With {deniability} decoys, it's very difficult to tell which secret was actually submitted.</p>
+                    )}
+                  </div>
+                </div>
               </div>
-              <input
-                type="range"
-                min="0"
-                max="10"
-                value={deniability}
-                onChange={(e) => setDeniability(+e.target.value)}
-                className="strictness-slider"
-              />
-            </div>
-          </div>
+            )}
 
-          {/* ADDITIONAL GUIDANCE */}
-          <div className="modal-section">
-            <div className="modal-section__label">Additional Guidance <span style={{ fontWeight: 400, color: '#555570' }}>(optional)</span></div>
-            <div className="modal-section__hint">Any extra instructions for the AI judge. This is appended to the rules above.</div>
-            <textarea
-              className="modal-textarea"
-              value={additionalGuidance}
-              onChange={(e) => setAdditionalGuidance(e.target.value)}
-              placeholder="e.g. 'Be extra careful not to match secrets that are only superficially similar' or 'We're all coworkers so work-related secrets are expected'"
-              rows={3}
-            />
+            {activeTab === 'expert' && (
+              <div className="animate-in">
+                <div className="modal-section">
+                  <div className="modal-section__label">Expert AI Instructions</div>
+                  <div className="modal-section__hint">Directly guide the AI judge. These instructions are combined with the settings in other tabs.</div>
+                  <textarea
+                    className="modal-textarea modal-textarea--expert"
+                    value={additionalGuidance}
+                    onChange={(e) => setAdditionalGuidance(e.target.value)}
+                    placeholder="e.g. 'We're all coworkers, so work-related secrets are expected. Be extra careful not to match secrets that are only superficially similar...'"
+                    rows={8}
+                  />
+                  <div className="expert-tips">
+                    <div className="expert-tips__title">Pro Tips:</div>
+                    <ul>
+                      <li>Be specific about what constitutes a "match" for your group.</li>
+                      <li>Mention any forbidden topics or sensitivities.</li>
+                      <li>Define the desired "voice" for the AI (e.g., formal, witty, cryptic).</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="modal-footer">
-          <button className="btn btn--secondary" onClick={onClose} style={{ padding: '10px 24px' }}>Cancel</button>
-          <button className="btn btn--primary" onClick={handleSave} disabled={saving} style={{ padding: '10px 32px' }}>
-            {saving ? 'Saving...' : 'Save Rules'}
-          </button>
+        <div className="modal-footer modal-footer--complex">
+          {getPersonaSummary()}
+          <div className="modal-actions">
+            <button className="btn btn--secondary" onClick={onClose}>Cancel</button>
+            <button className="btn btn--primary" onClick={handleSave} disabled={saving}>
+              {saving ? 'Applying...' : 'Save & Close'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function getRuleSummary(rc) {
-  if (!rc || (!rc.purpose && !rc.strategy)) return null;
-  const purposeLabel = PURPOSES.find(p => p.value === rc.purpose)?.label;
-  const strategyLabel = STRATEGIES.find(s => s.value === rc.strategy)?.label;
-  const parts = [];
-  if (purposeLabel) parts.push(purposeLabel);
-  if (strategyLabel) parts.push(strategyLabel);
-  if (rc.strictness) parts.push(STRICTNESS_LABELS[rc.strictness]);
-  if (rc.deniability > 0) parts.push(`${rc.deniability} decoys`);
-  return parts.join(' / ');
+function RuleSummaryDisplay({ roomConfig }) {
+  if (!roomConfig || (!roomConfig.purpose && !roomConfig.strategy)) {
+    return (
+      <div className="rule-summary-empty">
+        No rules configured yet
+      </div>
+    );
+  }
+
+  const p = PURPOSES.find(x => x.value === roomConfig.purpose);
+  const s = STRATEGIES.find(x => x.value === roomConfig.strategy);
+
+  return (
+    <div className="rule-summary-card">
+      <div className="rule-summary-item">
+        <span className="rule-summary-icon">{p?.icon || '🎯'}</span>
+        <div className="rule-summary-text">
+          <div className="rule-summary-label">Goal</div>
+          <div className="rule-summary-value">{p?.label || 'Custom'}</div>
+        </div>
+      </div>
+      <div className="rule-summary-item">
+        <span className="rule-summary-icon">⚖️</span>
+        <div className="rule-summary-text">
+          <div className="rule-summary-label">Logic</div>
+          <div className="rule-summary-value">{s?.label || 'Custom'}</div>
+        </div>
+      </div>
+      <div className="rule-summary-row">
+        <span className="badge badge--sealed" style={{ fontSize: '0.65rem' }}>{STRICTNESS_LABELS[roomConfig.strictness || 3]}</span>
+        {roomConfig.deniability > 0 && (
+          <span className="badge badge--submitted" style={{ fontSize: '0.65rem' }}>{roomConfig.deniability} Decoys</span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function GroupView() {
@@ -339,11 +466,8 @@ export default function GroupView() {
   if (loading) return <div className="loading">Loading...</div>;
   if (!group) return <div className="page"><div className="alert alert--error">Group not found</div></div>;
 
-  const ruleSummary = getRuleSummary(group.room_config);
-
   return (
-    <div className="container">
-      {showRulesModal && (
+    <div className="container">      {showRulesModal && (
         <RulesModal
           roomConfig={group.room_config || {}}
           onSave={handleSaveRules}
@@ -366,21 +490,12 @@ export default function GroupView() {
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem' }}>
                 <div className="section-label">Intelligence Control</div>
 
-                <div style={{ marginBottom: '1rem' }}>
-                  {ruleSummary ? (
-                    <div style={{ fontSize: '0.75rem', color: '#a29bfe', fontWeight: 'bold', marginBottom: '0.5rem', lineHeight: '1.4' }}>
-                      {ruleSummary}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '0.75rem', color: '#555570', marginBottom: '0.5rem' }}>
-                      No rules configured yet
-                    </div>
-                  )}
-                  <button className="btn btn--secondary btn--full" style={{ padding: '8px', fontSize: '0.75rem' }} onClick={() => setShowRulesModal(true)}>
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <RuleSummaryDisplay roomConfig={group.room_config} />
+                  <button className="btn btn--secondary btn--full" style={{ padding: '8px', fontSize: '0.75rem', marginTop: '0.5rem' }} onClick={() => setShowRulesModal(true)}>
                     CONFIGURE RULES
                   </button>
                 </div>
-
                 <div style={{ marginBottom: '1rem' }}>
                   <button
                     className="btn btn--primary btn--full"
