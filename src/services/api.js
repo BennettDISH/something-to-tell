@@ -56,3 +56,5 @@ export const saveAiConfig = (provider, api_key, model) =>
   request('/api/ai/config', { method: 'PUT', body: JSON.stringify({ provider, api_key, model }) });
 export const deleteAiConfig = () =>
   request('/api/ai/config', { method: 'DELETE' });
+export const testAiConnection = () =>
+  request('/api/ai/test', { method: 'POST' });

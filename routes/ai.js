@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../config/db.js';
 import { authenticate } from '../middleware/auth.js';
+import { getUserAiConfig, testConnection } from '../services/aiService.js';
 
 const router = Router();
 
@@ -56,6 +57,19 @@ router.delete('/config', authenticate, async (req, res) => {
     res.json({ message: 'AI config deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Test AI connection
+router.post('/test', authenticate, async (req, res) => {
+  try {
+    const config = await getUserAiConfig(req.user.central_user_id);
+    if (!config) return res.status(400).json({ error: 'No AI config found. Save one first.' });
+
+    const result = await testConnection(config);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

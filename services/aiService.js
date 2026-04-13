@@ -111,6 +111,26 @@ Respond with a JSON array of strings only, no other text:
   return JSON.parse(jsonMatch[0]);
 }
 
+export async function testConnection(config) {
+  const { type, client } = getClient(config);
+
+  if (type === 'openai') {
+    const res = await client.chat.completions.create({
+      model: config.model || 'gpt-4o',
+      messages: [{ role: 'user', content: 'Reply with the word "ok" only.' }],
+      max_tokens: 5,
+    });
+    return { success: true, reply: res.choices[0].message.content };
+  }
+
+  const res = await client.messages.create({
+    model: config.model || 'claude-sonnet-4-5-20250514',
+    max_tokens: 5,
+    messages: [{ role: 'user', content: 'Reply with the word "ok" only.' }],
+  });
+  return { success: true, reply: res.content[0].text };
+}
+
 export function shuffleWithSecret(fakes, realSecret) {
   const all = [...fakes, realSecret];
   for (let i = all.length - 1; i > 0; i--) {

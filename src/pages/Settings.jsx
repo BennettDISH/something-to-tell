@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getAiConfig, saveAiConfig, deleteAiConfig } from '../services/api';
+import { getAiConfig, saveAiConfig, deleteAiConfig, testAiConnection } from '../services/api';
 
 const PROVIDERS = [
   { value: 'anthropic', label: 'Anthropic (Claude)', models: ['claude-sonnet-4-5-20250514', 'claude-haiku-4-5-20251001'] },
@@ -14,6 +14,7 @@ export default function Settings() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     getAiConfig().then((data) => {
@@ -112,7 +113,26 @@ export default function Settings() {
               {hasConfig ? 'UPDATE' : 'INITIALIZE'} CONFIG
             </button>
             {hasConfig && (
-              <button type="button" className="btn btn--danger" style={{ padding: '12px' }} onClick={handleDelete}>PURGE</button>
+              <>
+                <button
+                  type="button"
+                  className="btn btn--secondary"
+                  style={{ padding: '12px' }}
+                  disabled={testing}
+                  onClick={async () => {
+                    setTesting(true); setError(''); setSuccess('');
+                    try {
+                      const result = await testAiConnection();
+                      setSuccess(`Connection successful — AI replied: "${result.reply}"`);
+                    } catch (err) {
+                      setError(`Connection failed — ${err.message}`);
+                    } finally { setTesting(false); }
+                  }}
+                >
+                  {testing ? 'TESTING...' : 'TEST'}
+                </button>
+                <button type="button" className="btn btn--danger" style={{ padding: '12px' }} onClick={handleDelete}>PURGE</button>
+              </>
             )}
           </div>
         </form>
