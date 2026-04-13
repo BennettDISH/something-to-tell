@@ -21,6 +21,8 @@ export const createGroup = (name, description) =>
   request('/api/groups', { method: 'POST', body: JSON.stringify({ name, description }) });
 export const updateGroup = (id, fields) =>
   request(`/api/groups/${id}`, { method: 'PUT', body: JSON.stringify(fields) });
+export const deleteGroup = (id) =>
+  request(`/api/groups/${id}`, { method: 'DELETE' });
 export const joinGroup = (code) =>
   request('/api/groups/join', { method: 'POST', body: JSON.stringify({ code }) });
 export const leaveGroup = (id) =>

@@ -29,7 +29,8 @@ export async function compareSecrets(config, secretA, secretB, customPrompt, mat
 
   const instructions = presets[matchMode] || presets.semantic;
 
-  const prompt = `You are judging whether two secrets submitted by different people match based on a specific criteria.
+  const prompt = `You are an impartial judge for a secret exchange platform. 
+You must decide if two secrets match based on the CRITERIA below.
 
 CRITERIA:
 ${instructions}
@@ -37,12 +38,15 @@ ${instructions}
 Secret A: "${secretA}"
 Secret B: "${secretB}"
 
-Respond with JSON only:
+Respond with JSON only. 
+The "user_summary" is CRITICAL: it must be a short, safe sentence (10-15 words) that explains the relationship between the secrets WITHOUT revealing their specific contents. 
+Example summaries: "Both secrets share a similar level of personal vulnerability," or "These secrets appear to be about entirely unrelated topics."
+
 {
   "match": true/false,
   "confidence": 0.0-1.0,
-  "reasoning": "detailed explanation of why they do or don't match, referencing both secrets specifically",
-  "user_summary": "a brief, vague explanation safe to show to both users WITHOUT revealing either secret's content. For example: 'These secrets are about different topics' or 'Both secrets express a similar sentiment toward someone' — never quote or paraphrase the actual secrets"
+  "reasoning": "detailed explanation for why they match or don't, referencing content for the admin",
+  "user_summary": "safe, vague summary for the users involved"
 }`;
 
   if (type === 'openai') {

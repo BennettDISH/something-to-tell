@@ -128,4 +128,20 @@ router.delete('/:id/leave', authenticate, async (req, res) => {
   }
 });
 
+// Delete group (admin only)
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    const { rows: membership } = await pool.query(
+      "SELECT * FROM group_members WHERE group_id = $1 AND central_user_id = $2 AND role = 'admin'",
+      [req.params.id, req.user.central_user_id]
+    );
+    if (!membership[0]) return res.status(403).json({ error: 'Only the group admin can delete the group' });
+
+    await pool.query('DELETE FROM groups WHERE id = $1', [req.params.id]);
+    res.json({ message: 'Group deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

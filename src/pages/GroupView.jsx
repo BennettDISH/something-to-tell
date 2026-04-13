@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getGroup, updateGroup, getGroupSecrets, addSecret, submitSecret, unsubmitSecret, triggerCompare, deleteSecret, getAdminLogs } from '../services/api';
+import { getGroup, updateGroup, getGroupSecrets, addSecret, submitSecret, unsubmitSecret, triggerCompare, deleteSecret, getAdminLogs, deleteGroup } from '../services/api';
 
 const MATCH_MODES = [
   { value: 'semantic', label: 'Semantic Equivalence', description: 'Match if secrets mean the same thing.' },
@@ -12,6 +12,7 @@ const MATCH_MODES = [
 
 export default function GroupView() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [group, setGroup] = useState(null);
   const [secrets, setSecrets] = useState([]);
@@ -36,6 +37,14 @@ export default function GroupView() {
   const isGroupAdmin = group?.members?.find(
     (m) => m.central_user_id === user.central_user_id && m.role === 'admin'
   );
+
+  const handleDeleteGroup = async () => {
+    if (!window.confirm('CRITICAL: Are you sure you want to PERMANENTLY delete this vault and all secrets within? This cannot be undone.')) return;
+    try {
+      await deleteGroup(id);
+      navigate('/');
+    } catch (err) { setError(err.message); }
+  };
 
   const load = async () => {
     try {
@@ -218,6 +227,12 @@ export default function GroupView() {
                     {showAdminLogs ? 'HIDE DEEP INTEL' : 'VIEW DEEP INTEL'}
                   </button>
                 )}
+
+                <div style={{ marginTop: '2rem', borderTop: '1px solid rgba(255, 68, 68, 0.2)', paddingTop: '1rem' }}>
+                  <button className="btn btn--danger btn--full" style={{ padding: '6px', fontSize: '0.7rem' }} onClick={handleDeleteGroup}>
+                    DELETE VAULT
+                  </button>
+                </div>
               </div>
             )}
           </div>
