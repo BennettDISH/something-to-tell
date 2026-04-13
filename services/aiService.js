@@ -20,9 +20,36 @@ function getClient(config) {
 
 export async function compareSecrets(config, secretA, secretB, customPrompt, matchMode = 'semantic') {
   const { type, client } = getClient(config);
-  
-  // ... (rest of the prompt logic)
-  
+
+  const presets = {
+    semantic: `Determine if these secrets are essentially about the same thing — not word-for-word identical, but equivalent in meaning and intent. For example, "I like you" and "I have a crush on you" would match.`,
+    seriousness: `Determine if these secrets have a similar level of "seriousness" or "gravity." They don't need to be about the same topic, but they should feel like they carry equal weight (e.g., both are lighthearted confessions, or both are deep life-changing secrets).`,
+    sentiment: `Determine if both secrets express a similar sentiment or "vibe." For example, both are things most people want to hear (positive/affirming), or both are expressions of fear/anxiety.`,
+    custom: customPrompt || `Determine if these secrets match based on the context of the group.`
+  };
+
+  const instructions = presets[matchMode] || presets.semantic;
+
+  const prompt = `You are an impartial judge for a secret exchange platform. 
+You must decide if two secrets match based on the CRITERIA below.
+
+CRITERIA:
+${instructions}
+
+Secret A: "${secretA}"
+Secret B: "${secretB}"
+
+Respond with JSON only. 
+The "user_summary" is CRITICAL: it must be a short, safe sentence (10-15 words) that explains the relationship between the secrets WITHOUT revealing their specific contents. 
+Example summaries: "Both secrets share a similar level of personal vulnerability," or "These secrets appear to be about entirely unrelated topics."
+
+{
+  "match": true/false,
+  "confidence": 0.0-1.0,
+  "reasoning": "detailed explanation for why they match or don't, referencing content for the admin",
+  "user_summary": "safe, vague summary for the users involved"
+}`;
+
   if (type === 'openai') {
     try {
       const res = await client.chat.completions.create({
