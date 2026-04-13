@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getGroup, getGroupSecrets, submitSecret, deleteSecret } from '../services/api';
+import { getGroup, updateGroup, getGroupSecrets, addSecret, submitSecret, unsubmitSecret, triggerCompare, deleteSecret } from '../services/api';
 
 export default function GroupView() {
   const { id } = useParams();
@@ -10,12 +10,19 @@ export default function GroupView() {
   const [secrets, setSecrets] = useState([]);
   const [matches, setMatches] = useState([]);
   const [otherMembers, setOtherMembers] = useState([]);
+  const [submittedStats, setSubmittedStats] = useState(null);
   const [newSecret, setNewSecret] = useState('');
   const [obfLevel, setObfLevel] = useState(3);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
+  const [comparing, setComparing] = useState(false);
+  const [editingPrompt, setEditingPrompt] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+
+  const isGroupAdmin = group?.members?.find(
+    (m) => m.central_user_id === user.central_user_id && m.role === 'admin'
+  );
 
   const load = async () => {
     try {
@@ -24,6 +31,8 @@ export default function GroupView() {
       setSecrets(secretsData.secrets);
       setMatches(secretsData.matches);
       setOtherMembers(secretsData.otherMembers);
+      setSubmittedStats(secretsData.submittedStats);
+      setAiPrompt(groupData.group.ai_prompt || '');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -33,40 +42,75 @@ export default function GroupView() {
 
   useEffect(() => { load(); }, [id]);
 
-  const handleSubmit = async (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault();
     if (!newSecret.trim()) return;
-    setSubmitting(true);
     setError('');
     setSuccess('');
     try {
-      const data = await submitSecret(id, newSecret.trim(), obfLevel);
+      await addSecret(id, newSecret.trim(), obfLevel);
       setNewSecret('');
-      if (data.matches?.length > 0) {
-        setSuccess(`Vault opened! ${data.matches.length} match${data.matches.length > 1 ? 'es' : ''} found.`);
+      setSuccess('Secret sealed. Submit it when you\'re ready for comparison.');
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleSubmit = async (secretId) => {
+    setError(''); setSuccess('');
+    try {
+      await submitSecret(secretId);
+      setSuccess('Secret submitted for comparison.');
+      await load();
+    } catch (err) { setError(err.message); }
+  };
+
+  const handleUnsubmit = async (secretId) => {
+    setError(''); setSuccess('');
+    try {
+      await unsubmitSecret(secretId);
+      await load();
+    } catch (err) { setError(err.message); }
+  };
+
+  const handleDelete = async (secretId) => {
+    setError(''); setSuccess('');
+    try {
+      await deleteSecret(secretId);
+      await load();
+    } catch (err) { setError(err.message); }
+  };
+
+  const handleCompare = async () => {
+    setComparing(true);
+    setError(''); setSuccess('');
+    try {
+      const data = await triggerCompare(id);
+      if (data.matches.length > 0) {
+        setSuccess(`Vault opened! ${data.matches.length} match${data.matches.length > 1 ? 'es' : ''} found across ${data.compared} secrets.`);
       } else {
-        setSuccess('Secret sealed. It will be revealed if someone submits a matching secret.');
+        setSuccess(`Compared ${data.compared} secrets — no matches found.`);
       }
       await load();
     } catch (err) {
       setError(err.message);
     } finally {
-      setSubmitting(false);
+      setComparing(false);
     }
   };
 
-  const handleDelete = async (secretId) => {
+  const handleSavePrompt = async () => {
+    setError('');
     try {
-      await deleteSecret(secretId);
+      await updateGroup(id, { ai_prompt: aiPrompt });
+      setEditingPrompt(false);
+      setSuccess('AI instructions updated.');
       await load();
-    } catch (err) {
-      setError(err.message);
-    }
+    } catch (err) { setError(err.message); }
   };
 
-  const copyCode = () => {
-    navigator.clipboard.writeText(group.join_code);
-  };
+  const copyCode = () => navigator.clipboard.writeText(group.join_code);
 
   if (loading) return <div className="loading">Loading...</div>;
   if (!group) return <div className="page"><div className="alert alert--error">Group not found</div></div>;
@@ -79,13 +123,13 @@ export default function GroupView() {
       </div>
       {group.description && <p style={{ color: '#8888a0', marginBottom: '1rem' }}>{group.description}</p>}
 
-      <div style={{ marginBottom: '2rem' }}>
+      <div style={{ marginBottom: '1.5rem' }}>
         <span style={{ color: '#555570', fontSize: '0.8rem' }}>Join code: </span>
         <span className="join-code" onClick={copyCode} title="Click to copy">{group.join_code}</span>
       </div>
 
       {/* Members */}
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
         {group.members?.map((m) => (
           <span key={m.central_user_id} style={{
             padding: '4px 10px', background: '#1a1a2e', borderRadius: 20, fontSize: '0.8rem',
@@ -96,12 +140,50 @@ export default function GroupView() {
         ))}
       </div>
 
-      {/* Submit secret */}
-      <div className="card" style={{ marginBottom: '2rem' }}>
-        <h3 style={{ marginBottom: '1rem', fontSize: '1rem' }}>Submit a Secret</h3>
-        {error && <div className="alert alert--error">{error}</div>}
-        {success && <div className="alert alert--success">{success}</div>}
-        <form onSubmit={handleSubmit}>
+      {error && <div className="alert alert--error">{error}</div>}
+      {success && <div className="alert alert--success">{success}</div>}
+
+      {/* AI Instructions (group admin only) */}
+      {isGroupAdmin && (
+        <div className="card" style={{ marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: editingPrompt ? '0.75rem' : 0 }}>
+            <h3 style={{ fontSize: '1rem', margin: 0 }}>AI Instructions</h3>
+            {!editingPrompt && (
+              <button className="btn btn--secondary" style={{ padding: '2px 10px', fontSize: '0.8rem' }} onClick={() => setEditingPrompt(true)}>
+                {group.ai_prompt ? 'Edit' : 'Set up'}
+              </button>
+            )}
+          </div>
+          {!editingPrompt && group.ai_prompt && (
+            <p style={{ color: '#8888a0', fontSize: '0.85rem', marginTop: '0.5rem', fontStyle: 'italic' }}>"{group.ai_prompt}"</p>
+          )}
+          {!editingPrompt && !group.ai_prompt && (
+            <p style={{ color: '#555570', fontSize: '0.8rem', marginTop: '0.5rem' }}>No custom instructions — using default matching.</p>
+          )}
+          {editingPrompt && (
+            <>
+              <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                <textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder='e.g. "Tell us if we are both thinking the same thing about each other" or "Match secrets that reveal the same fear"'
+                  rows={3}
+                />
+                <div className="form-hint">Tell the AI how to judge whether two secrets match.</div>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn btn--primary" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={handleSavePrompt}>Save</button>
+                <button className="btn btn--secondary" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={() => { setEditingPrompt(false); setAiPrompt(group.ai_prompt || ''); }}>Cancel</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Add a secret */}
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <h3 style={{ marginBottom: '1rem', fontSize: '1rem' }}>Add a Secret</h3>
+        <form onSubmit={handleAdd}>
           <div className="form-group">
             <label>Your secret</label>
             <textarea
@@ -124,21 +206,40 @@ export default function GroupView() {
                 : `Your secret will be mixed with ${obfLevel} AI-generated decoy${obfLevel > 1 ? 's' : ''}.`}
             </div>
           </div>
-          <button type="submit" className="btn btn--primary" disabled={submitting || !newSecret.trim()}>
-            {submitting ? 'Comparing with AI...' : 'Seal Secret'}
+          <button type="submit" className="btn btn--primary" disabled={!newSecret.trim()}>
+            Seal Secret
           </button>
         </form>
       </div>
 
-      {/* Other members' activity */}
+      {/* Other members' submission status */}
       {otherMembers.length > 0 && (
-        <div style={{ marginBottom: '2rem' }}>
-          <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem', color: '#8888a0' }}>Sealed Secrets</h3>
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem', color: '#8888a0' }}>Other Members</h3>
           {otherMembers.map((m) => (
             <div key={m.username} style={{ padding: '0.5rem 0', color: '#555570', fontSize: '0.9rem' }}>
-              {m.username} has {m.secret_count} sealed secret{m.secret_count !== 1 && 's'}
+              {m.username}: {m.submitted_count} submitted, {m.total_count} total
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Admin: trigger comparison */}
+      {isGroupAdmin && (
+        <div className="card" style={{ marginBottom: '1.5rem', borderColor: '#6c5ce7' }}>
+          <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Run Comparison</h3>
+          <p style={{ color: '#8888a0', fontSize: '0.85rem', marginBottom: '1rem' }}>
+            {submittedStats?.submitted_count > 0
+              ? `${submittedStats.submitted_count} secret${submittedStats.submitted_count > 1 ? 's' : ''} submitted by ${submittedStats.submitters} member${submittedStats.submitters > 1 ? 's' : ''}, ready for AI comparison.`
+              : 'No secrets submitted yet. Members need to submit their secrets first.'}
+          </p>
+          <button
+            className="btn btn--primary"
+            disabled={comparing || !submittedStats || submittedStats.submitted_count < 2}
+            onClick={handleCompare}
+          >
+            {comparing ? 'Comparing with AI...' : 'Compare Submitted Secrets'}
+          </button>
         </div>
       )}
 
@@ -177,7 +278,7 @@ export default function GroupView() {
         </>
       )}
 
-      {/* My sealed secrets */}
+      {/* My secrets */}
       {secrets.length > 0 && (
         <>
           <h3 style={{ fontSize: '1rem', marginBottom: '1rem', marginTop: '2rem' }}>Your Secrets</h3>
@@ -194,9 +295,17 @@ export default function GroupView() {
                   )}
                 </div>
               </div>
-              {s.status === 'sealed' && (
-                <button className="btn btn--danger" onClick={() => handleDelete(s.id)} style={{ flexShrink: 0 }}>Delete</button>
-              )}
+              <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                {s.status === 'sealed' && (
+                  <>
+                    <button className="btn btn--primary" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={() => handleSubmit(s.id)}>Submit</button>
+                    <button className="btn btn--danger" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={() => handleDelete(s.id)}>Delete</button>
+                  </>
+                )}
+                {s.status === 'submitted' && (
+                  <button className="btn btn--secondary" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={() => handleUnsubmit(s.id)}>Unsubmit</button>
+                )}
+              </div>
             </div>
           ))}
         </>

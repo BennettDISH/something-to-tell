@@ -207,6 +207,7 @@ a {
   font-weight: 600;
 
   &--sealed { background: rgba($accent, 0.15); color: $accent-light; }
+  &--submitted { background: rgba($warning, 0.15); color: $warning; }
   &--matched { background: rgba($success, 0.15); color: $success; }
   &--count { background: $bg-primary; color: $text-secondary; }
 }

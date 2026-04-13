@@ -5,12 +5,11 @@ import { getUserAiConfig, compareSecrets, generateObfuscation, shuffleWithSecret
 
 const router = Router();
 
-// Get my secrets in a group + any vault matches
+// Get my secrets in a group + matches + submission counts
 router.get('/group/:groupId', authenticate, async (req, res) => {
   try {
     const { groupId } = req.params;
 
-    // Verify membership
     const { rows: membership } = await pool.query(
       'SELECT * FROM group_members WHERE group_id = $1 AND central_user_id = $2',
       [groupId, req.user.central_user_id]
@@ -40,9 +39,11 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
       [groupId, req.user.central_user_id]
     );
 
-    // Other members' sealed secret count (not content)
+    // How many submitted secrets each other member has (not content)
     const { rows: otherCounts } = await pool.query(
-      `SELECT p.username, COUNT(s.id) as secret_count
+      `SELECT p.username,
+        COUNT(s.id) FILTER (WHERE s.status = 'submitted') as submitted_count,
+        COUNT(s.id) as total_count
        FROM secrets s
        JOIN profiles p ON s.central_user_id = p.central_user_id
        WHERE s.group_id = $1 AND s.central_user_id != $2
@@ -50,86 +51,167 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
       [groupId, req.user.central_user_id]
     );
 
-    res.json({ secrets: mySecrets, matches, otherMembers: otherCounts });
+    // Total submitted count for the group (for admin to know if ready)
+    const { rows: [submittedStats] } = await pool.query(
+      `SELECT COUNT(*) FILTER (WHERE status = 'submitted') as submitted_count,
+              COUNT(DISTINCT central_user_id) FILTER (WHERE status = 'submitted') as submitters
+       FROM secrets WHERE group_id = $1`,
+      [groupId]
+    );
+
+    res.json({
+      secrets: mySecrets,
+      matches,
+      otherMembers: otherCounts,
+      submittedStats: submittedStats,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Submit a secret and run AI comparison
+// Add a secret (sealed — no AI call)
 router.post('/group/:groupId', authenticate, async (req, res) => {
   try {
     const { groupId } = req.params;
     const { content, obfuscation_level = 3 } = req.body;
 
-    // Verify membership
     const { rows: membership } = await pool.query(
       'SELECT * FROM group_members WHERE group_id = $1 AND central_user_id = $2',
       [groupId, req.user.central_user_id]
     );
     if (!membership[0]) return res.status(403).json({ error: 'Not a member' });
 
-    // Use group creator's AI config
-    const { rows: [group] } = await pool.query('SELECT created_by FROM groups WHERE id = $1', [groupId]);
-    const aiConfig = await getUserAiConfig(group.created_by);
-    if (!aiConfig) return res.status(400).json({ error: 'The group creator needs to set up an AI provider in settings before secrets can be compared' });
-
-    // Insert secret
     const { rows: [newSecret] } = await pool.query(
       'INSERT INTO secrets (group_id, central_user_id, content, obfuscation_level) VALUES ($1,$2,$3,$4) RETURNING *',
       [groupId, req.user.central_user_id, content, obfuscation_level]
     );
 
-    // Get all other secrets in this group (not by this user)
-    const { rows: otherSecrets } = await pool.query(
-      'SELECT * FROM secrets WHERE group_id = $1 AND central_user_id != $2',
+    res.status(201).json({ secret: newSecret });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Submit a secret (mark as ready for AI comparison)
+router.patch('/:id/submit', authenticate, async (req, res) => {
+  try {
+    const { rows: [secret] } = await pool.query(
+      'SELECT * FROM secrets WHERE id = $1 AND central_user_id = $2',
+      [req.params.id, req.user.central_user_id]
+    );
+    if (!secret) return res.status(404).json({ error: 'Secret not found' });
+    if (secret.status !== 'sealed') return res.status(400).json({ error: 'Secret is already ' + secret.status });
+
+    const { rows: [updated] } = await pool.query(
+      "UPDATE secrets SET status = 'submitted' WHERE id = $1 RETURNING *",
+      [req.params.id]
+    );
+    res.json({ secret: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Unsubmit a secret (back to sealed)
+router.patch('/:id/unsubmit', authenticate, async (req, res) => {
+  try {
+    const { rows: [secret] } = await pool.query(
+      'SELECT * FROM secrets WHERE id = $1 AND central_user_id = $2',
+      [req.params.id, req.user.central_user_id]
+    );
+    if (!secret) return res.status(404).json({ error: 'Secret not found' });
+    if (secret.status !== 'submitted') return res.status(400).json({ error: 'Secret is not submitted' });
+
+    const { rows: [updated] } = await pool.query(
+      "UPDATE secrets SET status = 'sealed' WHERE id = $1 RETURNING *",
+      [req.params.id]
+    );
+    res.json({ secret: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: trigger AI comparison on all submitted secrets in a group
+router.post('/group/:groupId/compare', authenticate, async (req, res) => {
+  try {
+    const { groupId } = req.params;
+
+    // Verify user is group admin
+    const { rows: membership } = await pool.query(
+      "SELECT * FROM group_members WHERE group_id = $1 AND central_user_id = $2 AND role = 'admin'",
       [groupId, req.user.central_user_id]
     );
+    if (!membership[0]) return res.status(403).json({ error: 'Only the group admin can trigger comparison' });
 
-    // Compare against each using AI
+    // Get group (for ai_prompt)
+    const { rows: [group] } = await pool.query('SELECT * FROM groups WHERE id = $1', [groupId]);
+
+    // Get group creator's AI config
+    const aiConfig = await getUserAiConfig(group.created_by);
+    if (!aiConfig) return res.status(400).json({ error: 'Set up your AI provider in settings first' });
+
+    // Get all submitted secrets
+    const { rows: submitted } = await pool.query(
+      "SELECT * FROM secrets WHERE group_id = $1 AND status = 'submitted'",
+      [groupId]
+    );
+
+    if (submitted.length < 2) {
+      return res.status(400).json({ error: 'Need at least 2 submitted secrets to compare' });
+    }
+
+    // Compare all pairs
     const newMatches = [];
-    for (const other of otherSecrets) {
-      // Check if already matched
-      const { rows: existingMatch } = await pool.query(
-        `SELECT id FROM vault_matches
-         WHERE (secret_a_id = $1 AND secret_b_id = $2) OR (secret_a_id = $2 AND secret_b_id = $1)`,
-        [newSecret.id, other.id]
-      );
-      if (existingMatch[0]) continue;
+    for (let i = 0; i < submitted.length; i++) {
+      for (let j = i + 1; j < submitted.length; j++) {
+        const a = submitted[i];
+        const b = submitted[j];
 
-      try {
-        const result = await compareSecrets(aiConfig, content, other.content);
-        if (result.match && result.confidence >= 0.6) {
-          // Generate obfuscation for both secrets
-          let obfuscatedA = [content];
-          let obfuscatedB = [other.content];
+        // Skip if same user
+        if (a.central_user_id === b.central_user_id) continue;
 
-          if (newSecret.obfuscation_level > 0) {
-            const fakesA = await generateObfuscation(aiConfig, content, newSecret.obfuscation_level);
-            obfuscatedA = shuffleWithSecret(fakesA, content);
+        // Skip if already matched
+        const { rows: existingMatch } = await pool.query(
+          `SELECT id FROM vault_matches
+           WHERE (secret_a_id = $1 AND secret_b_id = $2) OR (secret_a_id = $2 AND secret_b_id = $1)`,
+          [a.id, b.id]
+        );
+        if (existingMatch[0]) continue;
+
+        try {
+          const result = await compareSecrets(aiConfig, a.content, b.content, group.ai_prompt);
+          if (result.match && result.confidence >= 0.6) {
+            let obfuscatedA = [a.content];
+            let obfuscatedB = [b.content];
+
+            if (a.obfuscation_level > 0) {
+              const fakesA = await generateObfuscation(aiConfig, a.content, a.obfuscation_level);
+              obfuscatedA = shuffleWithSecret(fakesA, a.content);
+            }
+            if (b.obfuscation_level > 0) {
+              const fakesB = await generateObfuscation(aiConfig, b.content, b.obfuscation_level);
+              obfuscatedB = shuffleWithSecret(fakesB, b.content);
+            }
+
+            const { rows: [match] } = await pool.query(
+              `INSERT INTO vault_matches (group_id, secret_a_id, secret_b_id, ai_reasoning, obfuscated_a, obfuscated_b)
+               VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+              [groupId, a.id, b.id, result.reasoning, obfuscatedA, obfuscatedB]
+            );
+
+            await pool.query("UPDATE secrets SET status = 'matched' WHERE id IN ($1, $2)", [a.id, b.id]);
+
+            newMatches.push({ match, reasoning: result.reasoning, confidence: result.confidence });
           }
-          if (other.obfuscation_level > 0) {
-            const fakesB = await generateObfuscation(aiConfig, other.content, other.obfuscation_level);
-            obfuscatedB = shuffleWithSecret(fakesB, other.content);
-          }
-
-          const { rows: [match] } = await pool.query(
-            `INSERT INTO vault_matches (group_id, secret_a_id, secret_b_id, ai_reasoning, obfuscated_a, obfuscated_b)
-             VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-            [groupId, newSecret.id, other.id, result.reasoning, obfuscatedA, obfuscatedB]
-          );
-
-          // Update secret statuses
-          await pool.query("UPDATE secrets SET status = 'matched' WHERE id IN ($1, $2)", [newSecret.id, other.id]);
-
-          newMatches.push({ match, reasoning: result.reasoning, confidence: result.confidence });
+        } catch (aiErr) {
+          console.error('AI comparison failed:', aiErr.message);
         }
-      } catch (aiErr) {
-        console.error('AI comparison failed:', aiErr.message);
       }
     }
 
-    res.status(201).json({ secret: newSecret, matches: newMatches });
+    res.json({ matches: newMatches, compared: submitted.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

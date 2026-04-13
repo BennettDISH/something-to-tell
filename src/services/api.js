@@ -19,6 +19,8 @@ export const getGroups = () => request('/api/groups');
 export const getGroup = (id) => request(`/api/groups/${id}`);
 export const createGroup = (name, description) =>
   request('/api/groups', { method: 'POST', body: JSON.stringify({ name, description }) });
+export const updateGroup = (id, fields) =>
+  request(`/api/groups/${id}`, { method: 'PUT', body: JSON.stringify(fields) });
 export const joinGroup = (code) =>
   request('/api/groups/join', { method: 'POST', body: JSON.stringify({ code }) });
 export const leaveGroup = (id) =>
@@ -26,11 +28,17 @@ export const leaveGroup = (id) =>
 
 // Secrets
 export const getGroupSecrets = (groupId) => request(`/api/secrets/group/${groupId}`);
-export const submitSecret = (groupId, content, obfuscation_level) =>
+export const addSecret = (groupId, content, obfuscation_level) =>
   request(`/api/secrets/group/${groupId}`, {
     method: 'POST',
     body: JSON.stringify({ content, obfuscation_level }),
   });
+export const submitSecret = (id) =>
+  request(`/api/secrets/${id}/submit`, { method: 'PATCH' });
+export const unsubmitSecret = (id) =>
+  request(`/api/secrets/${id}/unsubmit`, { method: 'PATCH' });
+export const triggerCompare = (groupId) =>
+  request(`/api/secrets/group/${groupId}/compare`, { method: 'POST' });
 export const deleteSecret = (id) =>
   request(`/api/secrets/${id}`, { method: 'DELETE' });
 

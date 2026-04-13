@@ -94,6 +94,27 @@ router.post('/join', authenticate, async (req, res) => {
   }
 });
 
+// Update group settings (admin only)
+router.put('/:id', authenticate, async (req, res) => {
+  try {
+    const { rows: membership } = await pool.query(
+      "SELECT * FROM group_members WHERE group_id = $1 AND central_user_id = $2 AND role = 'admin'",
+      [req.params.id, req.user.central_user_id]
+    );
+    if (!membership[0]) return res.status(403).json({ error: 'Only the group admin can update settings' });
+
+    const { name, description, ai_prompt } = req.body;
+    const { rows: [group] } = await pool.query(
+      `UPDATE groups SET name = COALESCE($1, name), description = COALESCE($2, description), ai_prompt = COALESCE($3, ai_prompt)
+       WHERE id = $4 RETURNING *`,
+      [name, description, ai_prompt, req.params.id]
+    );
+    res.json({ group });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Leave group
 router.delete('/:id/leave', authenticate, async (req, res) => {
   try {

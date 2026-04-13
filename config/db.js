@@ -35,9 +35,15 @@ export async function initDb() {
       name VARCHAR(255) NOT NULL,
       description TEXT,
       join_code VARCHAR(20) UNIQUE NOT NULL,
+      ai_prompt TEXT DEFAULT '',
       created_by INTEGER NOT NULL REFERENCES profiles(central_user_id),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    DO $$ BEGIN
+      ALTER TABLE groups ADD COLUMN IF NOT EXISTS ai_prompt TEXT DEFAULT '';
+    EXCEPTION WHEN others THEN NULL;
+    END $$;
 
     CREATE TABLE IF NOT EXISTS group_members (
       id SERIAL PRIMARY KEY,
