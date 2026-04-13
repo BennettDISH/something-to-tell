@@ -69,9 +69,10 @@ router.post('/group/:groupId', authenticate, async (req, res) => {
     );
     if (!membership[0]) return res.status(403).json({ error: 'Not a member' });
 
-    // Check AI config
-    const aiConfig = await getUserAiConfig(req.user.central_user_id);
-    if (!aiConfig) return res.status(400).json({ error: 'Set up your AI provider in settings before submitting secrets' });
+    // Use group creator's AI config
+    const { rows: [group] } = await pool.query('SELECT created_by FROM groups WHERE id = $1', [groupId]);
+    const aiConfig = await getUserAiConfig(group.created_by);
+    if (!aiConfig) return res.status(400).json({ error: 'The group creator needs to set up an AI provider in settings before secrets can be compared' });
 
     // Insert secret
     const { rows: [newSecret] } = await pool.query(
