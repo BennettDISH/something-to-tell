@@ -164,12 +164,12 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
     );
     if (!membership[0]) return res.status(403).json({ error: 'Only the group admin can trigger comparison' });
 
-    // Get group (for ai_prompt and match_mode)
-    const { rows: [group] } = await pool.query('SELECT * FROM groups WHERE id = $1', [groupId]);
-
-    // Get group creator's AI config
-    const aiConfig = await getUserAiConfig(group.created_by);
+    // Get current room admin AI config
+    const aiConfig = await getUserAiConfig(req.user.central_user_id);
     if (!aiConfig) return res.status(400).json({ error: 'Set up your AI provider in settings first' });
+
+    // Get group info (prompt/mode)
+    const { rows: [group] } = await pool.query('SELECT * FROM groups WHERE id = $1', [groupId]);
 
     // Get all submitted secrets
     const { rows: submitted } = await pool.query(

@@ -348,11 +348,16 @@ export default function GroupView() {
                     background: c.matched ? 'rgba(0, 184, 148, 0.05)' : 'rgba(255, 255, 255, 0.02)'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      <span className={`badge badge--${c.matched ? 'matched' : 'sealed'}`} style={{ width: '80px', textAlign: 'center' }}>
-                        {c.matched ? 'MATCH' : 'NO MATCH'}
+                      <span className={`badge badge--${c.matched ? 'matched' : (c.confidence === 0 ? 'danger' : 'sealed')}`} style={{ width: '80px', textAlign: 'center' }}>
+                        {c.matched ? 'MATCH' : (c.confidence === 0 ? 'ERROR' : 'NO MATCH')}
                       </span>
                       <div>
                         <div style={{ fontSize: '0.9rem', color: '#e8e8f0' }}>{c.user_summary || 'No summary available.'}</div>
+                        {c.confidence === 0 && (
+                          <div style={{ fontSize: '0.75rem', color: '#ff7675', marginTop: '4px' }}>
+                             Full Reason: {c.ai_reasoning}
+                          </div>
+                        )}
                         <div style={{ fontSize: '0.7rem', color: '#555570', marginTop: '2px' }}>
                           Intelligence analysis completed {new Date(c.created_at).toLocaleTimeString()}
                         </div>
