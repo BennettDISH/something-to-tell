@@ -45,6 +45,11 @@ export async function initDb() {
     EXCEPTION WHEN others THEN NULL;
     END $$;
 
+    DO $$ BEGIN
+      ALTER TABLE groups ADD COLUMN IF NOT EXISTS match_mode VARCHAR(50) DEFAULT 'semantic';
+    EXCEPTION WHEN others THEN NULL;
+    END $$;
+
     CREATE TABLE IF NOT EXISTS group_members (
       id SERIAL PRIMARY KEY,
       group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,

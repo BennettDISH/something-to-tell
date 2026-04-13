@@ -17,17 +17,21 @@ function getClient(config) {
   return { type: 'anthropic', client: new Anthropic({ apiKey: config.api_key }) };
 }
 
-export async function compareSecrets(config, secretA, secretB, customPrompt) {
+export async function compareSecrets(config, secretA, secretB, customPrompt, matchMode = 'semantic') {
   const { type, client } = getClient(config);
 
-  const defaultInstructions = `Determine if these secrets are essentially about the same thing — not word-for-word identical, but equivalent in meaning and intent. For example, "I like you" and "I have a crush on you" would match. "I like you" and "I think you're annoying" would NOT match.`;
+  const presets = {
+    semantic: `Determine if these secrets are essentially about the same thing — not word-for-word identical, but equivalent in meaning and intent. For example, "I like you" and "I have a crush on you" would match.`,
+    seriousness: `Determine if these secrets have a similar level of "seriousness" or "gravity." They don't need to be about the same topic, but they should feel like they carry equal weight (e.g., both are lighthearted confessions, or both are deep life-changing secrets).`,
+    sentiment: `Determine if both secrets express a similar sentiment or "vibe." For example, both are things most people want to hear (positive/affirming), or both are expressions of fear/anxiety.`,
+    custom: customPrompt || `Determine if these secrets match based on the context of the group.`
+  };
 
-  const instructions = customPrompt
-    ? `The group admin has given you these instructions: "${customPrompt}"\n\nUsing that guidance, compare the two secrets below.`
-    : defaultInstructions;
+  const instructions = presets[matchMode] || presets.semantic;
 
-  const prompt = `You are judging whether two secrets submitted by different people match.
+  const prompt = `You are judging whether two secrets submitted by different people match based on a specific criteria.
 
+CRITERIA:
 ${instructions}
 
 Secret A: "${secretA}"

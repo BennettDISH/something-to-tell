@@ -158,7 +158,7 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
     );
     if (!membership[0]) return res.status(403).json({ error: 'Only the group admin can trigger comparison' });
 
-    // Get group (for ai_prompt)
+    // Get group (for ai_prompt and match_mode)
     const { rows: [group] } = await pool.query('SELECT * FROM groups WHERE id = $1', [groupId]);
 
     // Get group creator's AI config
@@ -175,7 +175,7 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Need at least 2 submitted secrets to compare' });
     }
 
-    // Clear previous non-match comparisons for this group (re-runs replace old results)
+    // Clear previous non-match comparisons for this group
     await pool.query(
       `DELETE FROM comparisons WHERE group_id = $1
        AND NOT EXISTS (SELECT 1 FROM vault_matches vm WHERE vm.secret_a_id = comparisons.secret_a_id AND vm.secret_b_id = comparisons.secret_b_id)`,
@@ -190,10 +190,8 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
         const a = submitted[i];
         const b = submitted[j];
 
-        // Skip if same user
         if (a.central_user_id === b.central_user_id) continue;
 
-        // Skip if already matched
         const { rows: existingMatch } = await pool.query(
           `SELECT id FROM vault_matches
            WHERE (secret_a_id = $1 AND secret_b_id = $2) OR (secret_a_id = $2 AND secret_b_id = $1)`,
@@ -202,9 +200,9 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
         if (existingMatch[0]) continue;
 
         try {
-          const result = await compareSecrets(aiConfig, a.content, b.content, group.ai_prompt);
+          // PASS match_mode AND ai_prompt
+          const result = await compareSecrets(aiConfig, a.content, b.content, group.ai_prompt, group.match_mode);
 
-          // Log every comparison
           await pool.query(
             `INSERT INTO comparisons (group_id, secret_a_id, secret_b_id, matched, confidence, ai_reasoning, user_summary)
              VALUES ($1,$2,$3,$4,$5,$6,$7)`,
@@ -243,6 +241,50 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
     }
 
     res.json({ matches: newMatches, results: allResults, compared: submitted.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: Get all comparison logs and secrets for the group
+router.get('/group/:groupId/admin/logs', authenticate, async (req, res) => {
+  try {
+    const { groupId } = req.params;
+
+    // Verify user is group admin
+    const { rows: membership } = await pool.query(
+      "SELECT * FROM group_members WHERE group_id = $1 AND central_user_id = $2 AND role = 'admin'",
+      [groupId, req.user.central_user_id]
+    );
+    if (!membership[0]) return res.status(403).json({ error: 'Only the group admin can view detailed logs' });
+
+    // Get all comparisons with full reasoning AND secret contents
+    const { rows: logs } = await pool.query(
+      `SELECT c.*,
+        sa.content as secret_a_content, sa.central_user_id as user_a_id,
+        sb.content as secret_b_content, sb.central_user_id as user_b_id,
+        pa.username as user_a_name, pb.username as user_b_name
+       FROM comparisons c
+       JOIN secrets sa ON c.secret_a_id = sa.id
+       JOIN secrets sb ON c.secret_b_id = sb.id
+       JOIN profiles pa ON sa.central_user_id = pa.central_user_id
+       JOIN profiles pb ON sb.central_user_id = pb.central_user_id
+       WHERE c.group_id = $1
+       ORDER BY c.created_at DESC`,
+      [groupId]
+    );
+
+    // Get all secrets currently in the group
+    const { rows: allSecrets } = await pool.query(
+      `SELECT s.*, p.username
+       FROM secrets s
+       JOIN profiles p ON s.central_user_id = p.central_user_id
+       WHERE s.group_id = $1
+       ORDER BY s.created_at DESC`,
+      [groupId]
+    );
+
+    res.json({ logs, allSecrets });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

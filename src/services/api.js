@@ -41,6 +41,8 @@ export const triggerCompare = (groupId) =>
   request(`/api/secrets/group/${groupId}/compare`, { method: 'POST' });
 export const deleteSecret = (id) =>
   request(`/api/secrets/${id}`, { method: 'DELETE' });
+export const getAdminLogs = (groupId) =>
+  request(`/api/secrets/group/${groupId}/admin/logs`);
 
 // Admin
 export const adminGetGroups = () => request('/api/admin/groups');
