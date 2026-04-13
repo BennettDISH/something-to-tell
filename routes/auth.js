@@ -7,22 +7,23 @@ import { authenticate } from '../middleware/auth.js';
 const router = Router();
 
 async function findOrCreateProfile(centralUser) {
+  const userId = centralUser.central_user_id;
   const { rows: existing } = await pool.query(
     'SELECT * FROM profiles WHERE central_user_id = $1',
-    [centralUser.id]
+    [userId]
   );
   if (existing[0]) {
     await pool.query(
       `UPDATE profiles SET username=$1, email=$2, first_name=$3, last_name=$4, updated_at=NOW()
        WHERE central_user_id=$5`,
-      [centralUser.username, centralUser.email, centralUser.first_name, centralUser.last_name, centralUser.id]
+      [centralUser.username, centralUser.email, centralUser.first_name, centralUser.last_name, userId]
     );
     return { ...existing[0], username: centralUser.username, email: centralUser.email };
   }
   const { rows } = await pool.query(
     `INSERT INTO profiles (central_user_id, username, email, first_name, last_name)
      VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-    [centralUser.id, centralUser.username, centralUser.email, centralUser.first_name || '', centralUser.last_name || '']
+    [userId, centralUser.username, centralUser.email, centralUser.first_name || '', centralUser.last_name || '']
   );
   return rows[0];
 }
@@ -38,7 +39,7 @@ function issueToken(profile) {
 router.post('/register', async (req, res) => {
   try {
     const data = await centralRegister(req.body);
-    const profile = await findOrCreateProfile(data.user);
+    const profile = await findOrCreateProfile(data);
     res.json({ token: issueToken(profile), user: profile });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -48,7 +49,7 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const data = await centralLogin(req.body);
-    const profile = await findOrCreateProfile(data.user);
+    const profile = await findOrCreateProfile(data);
     res.json({ token: issueToken(profile), user: profile });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -58,7 +59,7 @@ router.post('/login', async (req, res) => {
 router.post('/sso-callback', async (req, res) => {
   try {
     const data = await exchangeCode(req.body.code);
-    const profile = await findOrCreateProfile(data.user);
+    const profile = await findOrCreateProfile(data);
     res.json({ token: issueToken(profile), user: profile });
   } catch (err) {
     res.status(400).json({ error: err.message });
