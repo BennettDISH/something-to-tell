@@ -11,6 +11,7 @@ export default function GroupView() {
   const [matches, setMatches] = useState([]);
   const [otherMembers, setOtherMembers] = useState([]);
   const [submittedStats, setSubmittedStats] = useState(null);
+  const [comparisons, setComparisons] = useState([]);
   const [newSecret, setNewSecret] = useState('');
   const [obfLevel, setObfLevel] = useState(3);
   const [error, setError] = useState('');
@@ -32,6 +33,7 @@ export default function GroupView() {
       setMatches(secretsData.matches);
       setOtherMembers(secretsData.otherMembers);
       setSubmittedStats(secretsData.submittedStats);
+      setComparisons(secretsData.comparisons || []);
       setAiPrompt(groupData.group.ai_prompt || '');
     } catch (err) {
       setError(err.message);
@@ -240,6 +242,31 @@ export default function GroupView() {
           >
             {comparing ? 'Comparing with AI...' : 'Compare Submitted Secrets'}
           </button>
+        </div>
+      )}
+
+      {/* Comparison Results (user view — safe summaries only) */}
+      {comparisons.length > 0 && (
+        <div style={{ marginBottom: '2rem' }}>
+          <h3 style={{ fontSize: '1rem', marginBottom: '1rem', color: '#8888a0' }}>Last Comparison Results</h3>
+          {comparisons.map((c) => (
+            <div key={c.id} className="card" style={{
+              padding: '0.75rem 1rem',
+              borderColor: c.matched ? '#00b894' : '#2a2a40',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                <span className={`badge badge--${c.matched ? 'matched' : 'sealed'}`}>
+                  {c.matched ? 'Matched' : 'No match'}
+                </span>
+                <span style={{ color: '#555570', fontSize: '0.75rem' }}>
+                  {Math.round(c.confidence * 100)}% confidence
+                </span>
+              </div>
+              {c.user_summary && (
+                <p style={{ color: '#8888a0', fontSize: '0.85rem', margin: 0 }}>{c.user_summary}</p>
+              )}
+            </div>
+          ))}
         </div>
       )}
 

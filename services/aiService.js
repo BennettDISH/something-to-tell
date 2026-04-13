@@ -37,7 +37,8 @@ Respond with JSON only:
 {
   "match": true/false,
   "confidence": 0.0-1.0,
-  "reasoning": "brief explanation"
+  "reasoning": "detailed explanation of why they do or don't match, referencing both secrets specifically",
+  "user_summary": "a brief, vague explanation safe to show to both users WITHOUT revealing either secret's content. For example: 'These secrets are about different topics' or 'Both secrets express a similar sentiment toward someone' — never quote or paraphrase the actual secrets"
 }`;
 
   if (type === 'openai') {

@@ -75,6 +75,18 @@ export async function initDb() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(secret_a_id, secret_b_id)
     );
+
+    CREATE TABLE IF NOT EXISTS comparisons (
+      id SERIAL PRIMARY KEY,
+      group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+      secret_a_id INTEGER NOT NULL REFERENCES secrets(id) ON DELETE CASCADE,
+      secret_b_id INTEGER NOT NULL REFERENCES secrets(id) ON DELETE CASCADE,
+      matched BOOLEAN NOT NULL DEFAULT FALSE,
+      confidence NUMERIC(3,2),
+      ai_reasoning TEXT,
+      user_summary TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 }
 

@@ -92,6 +92,52 @@ export default function Admin() {
                 ))
               )}
 
+              {/* Comparison Log (full AI reasoning) */}
+              {detail.comparisons?.length > 0 && (
+                <>
+                  <h4 style={{ color: '#a29bfe', fontSize: '0.85rem', margin: '1rem 0 0.5rem' }}>
+                    AI Comparison Log ({detail.comparisons.length})
+                  </h4>
+                  {detail.comparisons.map((c) => (
+                    <div key={c.id} className="card" style={{
+                      padding: '0.75rem 1rem',
+                      borderColor: c.matched ? '#00b894' : '#e17055',
+                      borderLeftWidth: 3,
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '0.8rem', color: '#8888a0' }}>
+                          {c.user_a_name} vs {c.user_b_name}
+                        </span>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <span style={{ color: '#555570', fontSize: '0.75rem' }}>{Math.round(c.confidence * 100)}%</span>
+                          <span className={`badge badge--${c.matched ? 'matched' : 'sealed'}`}>
+                            {c.matched ? 'Match' : 'No match'}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <div style={{ background: '#0a0a0f', padding: '0.5rem', borderRadius: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>
+                          {c.secret_a_content}
+                        </div>
+                        <div style={{ background: '#0a0a0f', padding: '0.5rem', borderRadius: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>
+                          {c.secret_b_content}
+                        </div>
+                      </div>
+                      {c.ai_reasoning && (
+                        <div style={{ fontSize: '0.8rem', color: '#8888a0', borderLeft: '2px solid #6c5ce7', paddingLeft: '0.75rem' }}>
+                          {c.ai_reasoning}
+                        </div>
+                      )}
+                      {c.user_summary && (
+                        <div style={{ fontSize: '0.75rem', color: '#555570', marginTop: '0.25rem' }}>
+                          User sees: "{c.user_summary}"
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
+
               {/* Matches */}
               {detail.matches.length > 0 && (
                 <>

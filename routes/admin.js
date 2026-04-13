@@ -63,7 +63,21 @@ router.get('/groups/:id', authenticateAdmin, async (req, res) => {
       [id]
     );
 
-    res.json({ group: { ...group, members }, secrets, matches });
+    const { rows: comparisons } = await pool.query(
+      `SELECT c.*,
+        sa.content as secret_a_content, pa.username as user_a_name,
+        sb.content as secret_b_content, pb.username as user_b_name
+       FROM comparisons c
+       JOIN secrets sa ON c.secret_a_id = sa.id
+       JOIN secrets sb ON c.secret_b_id = sb.id
+       JOIN profiles pa ON sa.central_user_id = pa.central_user_id
+       JOIN profiles pb ON sb.central_user_id = pb.central_user_id
+       WHERE c.group_id = $1
+       ORDER BY c.created_at DESC`,
+      [id]
+    );
+
+    res.json({ group: { ...group, members }, secrets, matches, comparisons });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
