@@ -28,44 +28,58 @@ export default function Dashboard() {
   if (loading) return <div className="loading">Loading...</div>;
 
   return (
-    <div className="page">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h1 className="page-title" style={{ marginBottom: 0 }}>Your Groups</h1>
-        <Link to="/groups/create" className="btn btn--primary">New Group</Link>
+    <div className="container">
+      <div className="hero-section">
+        <h1 className="page-title">Secret Vaults</h1>
+        <p>A mutual secret exchange platform. Join a group and share your truth with security and plausible deniability.</p>
+        
+        <form onSubmit={handleJoin} style={{ width: '100%', maxWidth: '500px', display: 'flex', gap: '0.5rem' }}>
+          <input
+            placeholder="ENTER JOIN CODE..."
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value)}
+            style={{
+              flex: 1, padding: '1rem', background: '#0a0a0f', border: '1px solid #2a2a40',
+              borderRadius: 8, color: '#a29bfe', fontFamily: "'JetBrains Mono', monospace", letterSpacing: 2,
+              textAlign: 'center', fontWeight: 'bold'
+            }}
+          />
+          <button type="submit" className="btn btn--primary" style={{ padding: '0 2rem' }} disabled={!joinCode.trim()}>JOIN</button>
+        </form>
       </div>
 
       {error && <div className="alert alert--error">{error}</div>}
 
-      <form onSubmit={handleJoin} style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem' }}>
-        <input
-          placeholder="Enter join code..."
-          value={joinCode}
-          onChange={(e) => setJoinCode(e.target.value)}
-          style={{
-            flex: 1, padding: '0.5rem 1rem', background: '#0a0a0f', border: '1px solid #2a2a40',
-            borderRadius: 6, color: '#e8e8f0', fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1
-          }}
-        />
-        <button type="submit" className="btn btn--secondary" disabled={!joinCode.trim()}>Join</button>
-      </form>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <div className="section-label">Your Active Vaults</div>
+        <Link to="/groups/create" className="btn btn--secondary" style={{ padding: '4px 15px', fontSize: '0.8rem' }}>+ NEW GROUP</Link>
+      </div>
 
       {groups.length === 0 ? (
-        <div className="empty-state">
+        <div className="empty-state glass-card">
           <div className="empty-state__icon">&#128274;</div>
           <div className="empty-state__text">No groups yet. Create one or join with a code.</div>
         </div>
       ) : (
-        groups.map((g) => (
-          <Link key={g.id} to={`/groups/${g.id}`} style={{ textDecoration: 'none' }}>
-            <div className="card">
-              <div className="card__title">{g.name}</div>
-              <div className="card__subtitle">
-                {g.member_count} member{g.member_count !== 1 && 's'}
-                {g.my_secrets > 0 && <> &middot; {g.my_secrets} secret{g.my_secrets !== 1 && 's'}</>}
+        <div className="dashboard-grid">
+          {groups.map((g) => (
+            <Link key={g.id} to={`/groups/${g.id}`} style={{ textDecoration: 'none' }}>
+              <div className="glass-card card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                  <div className="card__title" style={{ fontSize: '1.25rem', color: '#fff' }}>{g.name}</div>
+                  <span className="badge badge--count">{g.member_count}</span>
+                </div>
+                <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
+                  {g.my_secrets > 0 ? (
+                    <span className="badge badge--sealed">{g.my_secrets} Contributed</span>
+                  ) : (
+                    <span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: '#8888a0' }}>Empty</span>
+                  )}
+                </div>
               </div>
-            </div>
-          </Link>
-        ))
+            </Link>
+          ))}
+        </div>
       )}
     </div>
   );

@@ -57,13 +57,14 @@ export default function Settings() {
   if (loading) return <div className="loading">Loading...</div>;
 
   return (
-    <div className="page" style={{ maxWidth: 500 }}>
-      <h1 className="page-title">Settings</h1>
-
-      <div className="card">
-        <h3 style={{ marginBottom: '1rem' }}>AI Provider</h3>
-        <p style={{ color: '#8888a0', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-          Your API key is used to compare secrets and generate decoys. It's stored on the server and only used when you submit a secret.
+    <div className="container" style={{ maxWidth: 600 }}>
+      <div className="section-label" style={{ marginBottom: '2rem' }}>System Configuration</div>
+      
+      <div className="glass-card">
+        <h1 className="page-title" style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>AI Intelligence</h1>
+        <p style={{ color: '#8888a0', fontSize: '0.85rem', marginBottom: '2rem', lineHeight: '1.4' }}>
+          Configure the AI brain used for secret comparison and decoy generation. 
+          Your API key is stored securely and only invoked during active comparison cycles.
         </p>
 
         {error && <div className="alert alert--error">{error}</div>}
@@ -71,46 +72,47 @@ export default function Settings() {
 
         <form onSubmit={handleSave}>
           <div className="form-group">
-            <label>Provider</label>
+            <label>PROVIDER</label>
             <select value={provider} onChange={(e) => { setProvider(e.target.value); setModel(''); }}>
               {PROVIDERS.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
+                <option key={p.value} value={p.value}>{p.label.toUpperCase()}</option>
               ))}
             </select>
           </div>
 
           <div className="form-group">
-            <label>API Key</label>
+            <label>API KEY</label>
             <input
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder={hasConfig ? '••••••••  (saved — enter new to update)' : 'Enter your API key'}
+              placeholder={hasConfig ? '••••••••  (STORED)' : 'ENTER API KEY'}
               required={!hasConfig}
+              style={{ fontFamily: 'monospace', letterSpacing: '2px' }}
             />
             <div className="form-hint">
               {provider === 'anthropic'
-                ? 'Get your key from console.anthropic.com'
-                : 'Get your key from platform.openai.com'}
+                ? 'Acquire from console.anthropic.com'
+                : 'Acquire from platform.openai.com'}
             </div>
           </div>
 
           <div className="form-group">
-            <label>Model</label>
+            <label>LLM MODEL</label>
             <select value={model} onChange={(e) => setModel(e.target.value)}>
-              <option value="">Default</option>
+              <option value="">DEFAULT SELECTION</option>
               {currentModels.map((m) => (
-                <option key={m} value={m}>{m}</option>
+                <option key={m} value={m}>{m.toUpperCase()}</option>
               ))}
             </select>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button type="submit" className="btn btn--primary">
-              {hasConfig ? 'Update' : 'Save'} Configuration
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+            <button type="submit" className="btn btn--primary" style={{ flex: 1, padding: '12px' }}>
+              {hasConfig ? 'UPDATE' : 'INITIALIZE'} CONFIG
             </button>
             {hasConfig && (
-              <button type="button" className="btn btn--danger" onClick={handleDelete}>Remove</button>
+              <button type="button" className="btn btn--danger" style={{ padding: '12px' }} onClick={handleDelete}>PURGE</button>
             )}
           </div>
         </form>
