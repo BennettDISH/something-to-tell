@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import pool from '../config/db.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, isAdmin } from '../middleware/auth.js';
 import { getUserAiConfig, compareSecrets, generateObfuscation, shuffleWithSecret } from '../services/aiService.js';
 
 const router = Router();
@@ -246,17 +246,15 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
   }
 });
 
-// Admin: Get all comparison logs and secrets for the group
+// Admin: Get all comparison logs and secrets for the group (SITE ADMIN ONLY)
 router.get('/group/:groupId/admin/logs', authenticate, async (req, res) => {
   try {
     const { groupId } = req.params;
 
-    // Verify user is group admin
-    const { rows: membership } = await pool.query(
-      "SELECT * FROM group_members WHERE group_id = $1 AND central_user_id = $2 AND role = 'admin'",
-      [groupId, req.user.central_user_id]
-    );
-    if (!membership[0]) return res.status(403).json({ error: 'Only the group admin can view detailed logs' });
+    // Verify user is SITE admin
+    if (!isAdmin(req.user.central_user_id)) {
+      return res.status(403).json({ error: 'Only site admins can view deep intelligence logs' });
+    }
 
     // Get all comparisons with full reasoning AND secret contents
     const { rows: logs } = await pool.query(
