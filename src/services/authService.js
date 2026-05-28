@@ -62,6 +62,10 @@ export async function getProfile() {
   return data.user;
 }
 
+export function getAuthServiceUrl() {
+  return import.meta.env.VITE_AUTH_SERVICE_URL;
+}
+
 export function getSsoLoginUrl() {
   const authUrl = import.meta.env.VITE_AUTH_SERVICE_URL;
   const clientId = import.meta.env.VITE_SSO_CLIENT_ID;

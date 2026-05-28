@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getSsoLoginUrl } from '../services/authService';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -9,7 +8,6 @@ export default function Login() {
   const [error, setError] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
-  const ssoUrl = getSsoLoginUrl();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,13 +37,6 @@ export default function Login() {
         </div>
         <button type="submit" className="btn btn--primary btn--full">Sign In</button>
       </form>
-
-      {ssoUrl && (
-        <>
-          <div className="divider">or</div>
-          <a href={ssoUrl} className="btn btn--sso">Sign in with bennettdishman.com</a>
-        </>
-      )}
 
       <p style={{ textAlign: 'center', marginTop: '1.5rem', color: '#8888a0', fontSize: '0.9rem' }}>
         Don't have an account? <Link to="/register">Create one</Link>

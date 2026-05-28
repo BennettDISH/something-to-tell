@@ -10,6 +10,8 @@ import GroupView from './pages/GroupView';
 import Settings from './pages/Settings';
 import Admin from './pages/Admin';
 
+import { getAuthServiceUrl } from './services/authService';
+
 function Nav() {
   const { user, logout } = useAuth();
   const location = useLocation();
@@ -17,12 +19,18 @@ function Nav() {
   if (!user) return null;
 
   const isActive = (path) => location.pathname === path ? 'nav__link nav__link--active' : 'nav__link';
+  const authUrl = getAuthServiceUrl();
 
   return (
     <nav className="nav">
       <Link to="/" className="nav__logo">something to tell</Link>
       <div className="nav__links">
         <Link to="/" className={isActive('/')}>Groups</Link>
+        {authUrl && (
+          <a href={`${authUrl}/profile`} className="nav__link" target="_blank" rel="noopener noreferrer">
+            Profile
+          </a>
+        )}
         <Link to="/settings" className={isActive('/settings')}>Settings</Link>
         {user.is_admin && <Link to="/admin" className={isActive('/admin')}>Admin</Link>}
         <button onClick={logout} className="btn btn--secondary" style={{ padding: '4px 12px', fontSize: '0.85rem' }}>
