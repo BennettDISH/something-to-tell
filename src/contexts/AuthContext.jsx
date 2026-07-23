@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { getProfile, login as loginApi, register as registerApi, ssoCallback, clearToken, getToken } from '../services/authService';
+import { getProfile, login as loginApi, register as registerApi, ssoCallback, guestLogin as guestApi, clearToken, getToken } from '../services/authService';
 
 const AuthContext = createContext(null);
 
@@ -33,13 +33,19 @@ export function AuthProvider({ children }) {
     return u;
   };
 
+  const guestLogin = async () => {
+    const u = await guestApi();
+    setUser(u);
+    return u;
+  };
+
   const logout = () => {
     clearToken();
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, ssoLogin, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, ssoLogin, guestLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );

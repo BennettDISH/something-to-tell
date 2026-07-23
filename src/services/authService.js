@@ -53,6 +53,17 @@ export async function ssoCallback(code) {
   return data.user;
 }
 
+export async function guestLogin() {
+  const res = await fetch(`${API}/guest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  saveToken(data.token);
+  return data.user;
+}
+
 export async function getProfile() {
   const res = await fetch(`${API}/profile`, {
     headers: authHeaders(),
