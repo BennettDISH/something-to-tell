@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../config/db.js';
 import { authenticate, isAdmin } from '../middleware/auth.js';
 import { getUserAiConfig, compareSecrets, generateObfuscation, shuffleWithSecret } from '../services/aiService.js';
+import { encrypt, encryptArray, decrypt, decryptFields, isDecryptionMarker } from '../config/crypto.js';
 
 const router = Router();
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -78,11 +79,12 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
     );
 
     res.json({
-      secrets: mySecrets,
-      matches,
+      secrets: mySecrets.map((r) => decryptFields(r, ['content'])),
+      matches: matches.map((r) =>
+        decryptFields(r, ['secret_a_content', 'secret_b_content', 'ai_reasoning', 'obfuscated_a', 'obfuscated_b'])),
       otherMembers: otherCounts,
       submittedStats: submittedStats,
-      comparisons: myComparisons,
+      comparisons: myComparisons.map((r) => decryptFields(r, ['user_summary'])),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -103,10 +105,10 @@ router.post('/group/:groupId', authenticate, async (req, res) => {
 
     const { rows: [newSecret] } = await pool.query(
       'INSERT INTO secrets (group_id, central_user_id, content, obfuscation_level) VALUES ($1,$2,$3,$4) RETURNING *',
-      [groupId, req.user.central_user_id, content, obfuscation_level]
+      [groupId, req.user.central_user_id, encrypt(content), obfuscation_level]
     );
 
-    res.status(201).json({ secret: newSecret });
+    res.status(201).json({ secret: { ...newSecret, content } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -126,7 +128,7 @@ router.patch('/:id/submit', authenticate, async (req, res) => {
       "UPDATE secrets SET status = 'submitted' WHERE id = $1 RETURNING *",
       [req.params.id]
     );
-    res.json({ secret: updated });
+    res.json({ secret: decryptFields(updated, ['content']) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -146,7 +148,7 @@ router.patch('/:id/unsubmit', authenticate, async (req, res) => {
       "UPDATE secrets SET status = 'sealed' WHERE id = $1 RETURNING *",
       [req.params.id]
     );
-    res.json({ secret: updated });
+    res.json({ secret: decryptFields(updated, ['content']) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -171,14 +173,25 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
     // Get group info (prompt/mode)
     const { rows: [group] } = await pool.query('SELECT * FROM groups WHERE id = $1', [groupId]);
 
-    // Get all submitted secrets
-    const { rows: submitted } = await pool.query(
+    // Get all submitted secrets (decrypted here once — the AI compares plaintext)
+    const { rows: submittedRows } = await pool.query(
       "SELECT * FROM secrets WHERE group_id = $1 AND status = 'submitted'",
       [groupId]
     );
+    // Drop anything we could not decrypt. Every unreadable secret decrypts to the
+    // SAME marker string, so comparing them would look like a perfect match and
+    // mint a permanent, irreversible vault match over garbage.
+    const allSubmitted = submittedRows.map((r) => decryptFields(r, ['content']));
+    const submitted = allSubmitted.filter((s) => !isDecryptionMarker(s.content));
+    const unreadable = allSubmitted.length - submitted.length;
+    if (unreadable) console.warn(`[compare] skipped ${unreadable} undecryptable secret(s) in group ${groupId}`);
 
     if (submitted.length < 2) {
-      return res.status(400).json({ error: 'Need at least 2 submitted secrets to compare' });
+      return res.status(400).json({
+        error: unreadable
+          ? `Need at least 2 readable submitted secrets — ${unreadable} could not be decrypted (ENCRYPTION_KEY changed?)`
+          : 'Need at least 2 submitted secrets to compare',
+      });
     }
 
     // Clear previous non-match comparisons for this group
@@ -217,7 +230,7 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
           await pool.query(
             `INSERT INTO comparisons (group_id, secret_a_id, secret_b_id, matched, confidence, ai_reasoning, user_summary)
              VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-            [groupId, a.id, b.id, isMatch, result.confidence, result.reasoning, result.user_summary || '']
+            [groupId, a.id, b.id, isMatch, result.confidence, encrypt(result.reasoning), encrypt(result.user_summary || '')]
           );
 
           allResults.push({ matched: isMatch, confidence: result.confidence, user_summary: result.user_summary });
@@ -237,11 +250,15 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
             const { rows: [match] } = await pool.query(
               `INSERT INTO vault_matches (group_id, secret_a_id, secret_b_id, ai_reasoning, obfuscated_a, obfuscated_b)
                VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-              [groupId, a.id, b.id, result.reasoning, obfuscatedA, obfuscatedB]
+              [groupId, a.id, b.id, encrypt(result.reasoning), encryptArray(obfuscatedA), encryptArray(obfuscatedB)]
             );
 
             await pool.query("UPDATE secrets SET status = 'matched' WHERE id IN ($1, $2)", [a.id, b.id]);
-            newMatches.push({ match, reasoning: result.reasoning, confidence: result.confidence });
+            newMatches.push({
+              match: decryptFields(match, ['ai_reasoning', 'obfuscated_a', 'obfuscated_b']),
+              reasoning: result.reasoning,
+              confidence: result.confidence,
+            });
           }
         } catch (aiErr) {
           console.error('AI comparison failed:', aiErr.message);
@@ -256,7 +273,7 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
           await pool.query(
             `INSERT INTO comparisons (group_id, secret_a_id, secret_b_id, matched, confidence, ai_reasoning, user_summary)
              VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-            [groupId, a.id, b.id, false, 0, aiErr.message, userMsg]
+            [groupId, a.id, b.id, false, 0, encrypt(aiErr.message), encrypt(userMsg)]
           );
         }
       }
@@ -309,7 +326,10 @@ router.get('/group/:groupId/admin/logs', authenticate, async (req, res) => {
       [groupId]
     );
 
-    res.json({ logs, allSecrets });
+    res.json({
+      logs: logs.map((r) => decryptFields(r, ['ai_reasoning', 'user_summary', 'secret_a_content', 'secret_b_content'])),
+      allSecrets: allSecrets.map((r) => decryptFields(r, ['content'])),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

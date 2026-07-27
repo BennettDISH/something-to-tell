@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../config/db.js';
 import { authenticate } from '../middleware/auth.js';
 import { getUserAiConfig, testConnection } from '../services/aiService.js';
+import { encrypt } from '../config/crypto.js';
 
 const router = Router();
 
@@ -35,12 +36,12 @@ router.put('/config', authenticate, async (req, res) => {
       await pool.query(
         `UPDATE ai_configs SET provider=$1, api_key=$2, model=$3, updated_at=NOW()
          WHERE central_user_id=$4`,
-        [provider, api_key, model || null, req.user.central_user_id]
+        [provider, encrypt(api_key), model || null, req.user.central_user_id]
       );
     } else {
       await pool.query(
         'INSERT INTO ai_configs (central_user_id, provider, api_key, model) VALUES ($1,$2,$3,$4)',
-        [req.user.central_user_id, provider, api_key, model || null]
+        [req.user.central_user_id, provider, encrypt(api_key), model || null]
       );
     }
 

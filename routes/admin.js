@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../config/db.js';
 import { authenticateAdmin } from '../middleware/auth.js';
+import { decryptFields } from '../config/crypto.js';
 
 const router = Router();
 
@@ -77,7 +78,14 @@ router.get('/groups/:id', authenticateAdmin, async (req, res) => {
       [id]
     );
 
-    res.json({ group: { ...group, members }, secrets, matches, comparisons });
+    res.json({
+      group: { ...group, members },
+      secrets: secrets.map((r) => decryptFields(r, ['content'])),
+      matches: matches.map((r) =>
+        decryptFields(r, ['secret_a_content', 'secret_b_content', 'ai_reasoning', 'obfuscated_a', 'obfuscated_b'])),
+      comparisons: comparisons.map((r) =>
+        decryptFields(r, ['secret_a_content', 'secret_b_content', 'ai_reasoning', 'user_summary'])),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
