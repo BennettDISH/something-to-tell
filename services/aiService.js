@@ -2,16 +2,23 @@ import crypto from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import pool from '../config/db.js';
-import { decryptFields } from '../config/crypto.js';
+import { tryDecrypt } from '../config/crypto.js';
 
 // Single choke point for AI credentials: the api_key is decrypted here and only
-// ever lives in memory for the duration of the call.
+// ever lives in memory for the duration of the call. If it cannot be decrypted
+// (ENCRYPTION_KEY changed), fail loudly — sending a marker string to the provider
+// as a credential just produces a confusing 401 from someone else's API.
 export async function getUserAiConfig(centralUserId) {
   const { rows } = await pool.query(
     'SELECT * FROM ai_configs WHERE central_user_id = $1',
     [centralUserId]
   );
-  return rows[0] ? decryptFields(rows[0], ['api_key']) : null;
+  if (!rows[0]) return null;
+  const key = tryDecrypt(rows[0].api_key);
+  if (!key.ok) {
+    throw new Error('Your stored AI API key can no longer be decrypted — re-save it in Settings.');
+  }
+  return { ...rows[0], api_key: key.value };
 }
 
 function getClient(config) {
@@ -149,7 +156,17 @@ function leaksSecret(summary, secret) {
   const sec = normalize(secret);
   if (!sum || !sec) return false;
   const words = sec.split(' ');
-  if (words.length < 6) return sec.length >= 12 && sum.includes(sec);
+  // Short secrets are the most sensitive ("im pregnant"), so don't exempt them:
+  // fall back to the whole secret, and to a 3-word window once there are 3+ words.
+  if (words.length < 6) {
+    if (sec.length >= 8 && sum.includes(sec)) return true;
+    const win = Math.min(3, words.length);
+    for (let i = 0; i + win <= words.length; i++) {
+      const chunk = words.slice(i, i + win).join(' ');
+      if (chunk.length >= 8 && sum.includes(chunk)) return true;
+    }
+    return false;
+  }
   for (let i = 0; i + 6 <= words.length; i++) {
     if (sum.includes(words.slice(i, i + 6).join(' '))) return true;
   }

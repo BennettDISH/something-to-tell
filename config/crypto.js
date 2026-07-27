@@ -10,8 +10,11 @@ const PREFIX = 'enc:v1:';
 const RAW_KEY = process.env.ENCRYPTION_KEY || '';
 const KEY = RAW_KEY ? crypto.createHash('sha256').update(RAW_KEY).digest() : null;
 
-// iv(12) + authTag(16) + at least one byte of ciphertext
-const MIN_PAYLOAD_BYTES = 29;
+// iv(12) + authTag(16). GCM is a stream mode, so ciphertext length == plaintext
+// length: the empty string legitimately encrypts to exactly 28 bytes. Requiring
+// 29 here made encrypt('') unrecognisable to isEncrypted(), so decrypt() handed
+// the raw ciphertext back and the backfill re-encrypted it on the next boot.
+const MIN_PAYLOAD_BYTES = 28;
 
 export const encryptionEnabled = !!KEY;
 
@@ -46,18 +49,25 @@ export const BAD_KEY_MARKER = '[encrypted — cannot decrypt (wrong ENCRYPTION_K
 
 export const isDecryptionMarker = (v) => v === NO_KEY_MARKER || v === BAD_KEY_MARKER;
 
-export function decrypt(value) {
-  if (!isEncrypted(value)) return value;
-  if (!KEY) return NO_KEY_MARKER;
+// Out-of-band result: { ok, value }. Callers that must ACT on content (feeding
+// the AI, matching secrets) use this instead of string-comparing the markers —
+// a member can type a marker's text as their secret, and that must not be
+// mistaken for a decryption failure.
+export function tryDecrypt(value) {
+  if (!isEncrypted(value)) return { ok: true, value };
+  if (!KEY) return { ok: false, value: NO_KEY_MARKER };
   try {
     const buf = Buffer.from(value.slice(PREFIX.length), 'base64');
     const decipher = crypto.createDecipheriv('aes-256-gcm', KEY, buf.subarray(0, 12));
     decipher.setAuthTag(buf.subarray(12, 28));
-    return Buffer.concat([decipher.update(buf.subarray(28)), decipher.final()]).toString('utf8');
+    return { ok: true, value: Buffer.concat([decipher.update(buf.subarray(28)), decipher.final()]).toString('utf8') };
   } catch {
-    return BAD_KEY_MARKER;
+    return { ok: false, value: BAD_KEY_MARKER };
   }
 }
+
+// Display-oriented: unreadable content becomes a marker string rather than throwing.
+export const decrypt = (value) => tryDecrypt(value).value;
 
 export const encryptArray = (arr) => (Array.isArray(arr) ? arr.map(encrypt) : arr);
 

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import pool from '../config/db.js';
 import { authenticate, isAdmin } from '../middleware/auth.js';
 import { getUserAiConfig, compareSecrets, generateObfuscation, shuffleWithSecret } from '../services/aiService.js';
-import { encrypt, encryptArray, decrypt, decryptFields, isDecryptionMarker } from '../config/crypto.js';
+import { encrypt, encryptArray, decrypt, decryptFields, tryDecrypt } from '../config/crypto.js';
 
 const router = Router();
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -180,10 +180,11 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
     );
     // Drop anything we could not decrypt. Every unreadable secret decrypts to the
     // SAME marker string, so comparing them would look like a perfect match and
-    // mint a permanent, irreversible vault match over garbage.
-    const allSubmitted = submittedRows.map((r) => decryptFields(r, ['content']));
-    const submitted = allSubmitted.filter((s) => !isDecryptionMarker(s.content));
-    const unreadable = allSubmitted.length - submitted.length;
+    // mint a permanent, irreversible vault match over garbage. The ok flag is
+    // out-of-band, so a member who types a marker's text keeps a real secret.
+    const decrypted = submittedRows.map((r) => ({ row: r, res: tryDecrypt(r.content) }));
+    const submitted = decrypted.filter((d) => d.res.ok).map((d) => ({ ...d.row, content: d.res.value }));
+    const unreadable = decrypted.length - submitted.length;
     if (unreadable) console.warn(`[compare] skipped ${unreadable} undecryptable secret(s) in group ${groupId}`);
 
     if (submitted.length < 2) {

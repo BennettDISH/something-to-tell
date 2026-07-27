@@ -31,6 +31,7 @@ Railway.
 ## Notes
 `ENCRYPTION_KEY` (any strong string) encrypts secrets/API keys/AI text at rest via `config/crypto.js`
 (`enc:v1:` prefix; legacy plaintext rows are backfill-encrypted automatically at the next boot after the
-key is set). No key rotation: changing the key makes old rows unreadable (they render as an
+key is set). During that first redeploy an old replica may still be serving without the key, so a few
+requests can briefly show `[encrypted — …]` in place of content; it resolves as soon as cutover finishes. No key rotation: changing the key makes old rows unreadable (they render as an
 `[encrypted — …]` marker, never a crash). AI matching uses the Anthropic API. Auth via `auth-service`
 (SSO). See `../PORTFOLIO.md`.
