@@ -355,40 +355,6 @@ a {
   }
 }
 
-// Obfuscation slider
-.obfuscation-control {
-  display: flex;
-  align-items: center;
-  gap: $space-md;
-
-  input[type="range"] {
-    flex: 1;
-    -webkit-appearance: none;
-    background: $border;
-    height: 4px;
-    border-radius: 2px;
-    border: none;
-    padding: 0;
-
-    &::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 16px;
-      height: 16px;
-      background: $accent;
-      border-radius: 50%;
-      cursor: pointer;
-    }
-  }
-
-  span {
-    font-family: $font-mono;
-    font-size: 0.85rem;
-    color: $accent-light;
-    min-width: 2ch;
-    text-align: center;
-  }
-}
-
 // Join code display
 .join-code {
   display: inline-block;
