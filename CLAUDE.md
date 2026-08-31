@@ -30,11 +30,15 @@ src/                      # React frontend
 ```
 
 ## Key Flows
-1. User sets AI provider + API key in Settings
+1. Room admin sets AI provider + API key in Settings — only the admin's key is ever used
 2. User creates/joins a group, shares join code
-3. User submits a secret with obfuscation level (0-10 decoys)
-4. Backend compares new secret against all others in group using submitter's AI key
-5. If AI says match (confidence >= 0.6), vault opens — both secrets revealed with obfuscation
+3. User writes a secret (SEAL SECRET) — stored `sealed`, no AI call is made on write
+4. User marks it SUBMIT when ready (`sealed` → `submitted`); UNSUBMIT puts it back
+5. Room admin hits RUN COMPARISON (`POST /api/secrets/group/:groupId/compare`, 403 for
+   non-admins) — the backend compares every cross-member pair of submitted secrets using
+   the **admin's** AI key, not the submitters'
+6. If AI says match (confidence >= 0.6), vault opens — both secrets revealed, padded with
+   AI-generated decoys when the room's `deniability` setting is above 0
 
 ## Environment Variables
 - `DATABASE_URL` — PostgreSQL connection string
