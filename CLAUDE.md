@@ -32,9 +32,17 @@ src/                      # React frontend
 ## Key Flows
 1. User sets AI provider + API key in Settings
 2. User creates/joins a group, shares join code
-3. User submits a secret with obfuscation level (0-10 decoys)
+3. User seals a secret — content only, no per-secret options. The decoy count is a
+   room rule (`room_config.deniability`, 0-10), set by the group admin in the room's
+   intelligence rules, and applies to every reveal in that room.
 4. Backend compares new secret against all others in group using submitter's AI key
-5. If AI says match (confidence >= 0.6), vault opens — both secrets revealed with obfuscation
+5. If AI says match (confidence >= 0.6), vault opens — both secrets revealed, padded
+   with AI-generated decoys when the room's `deniability` is > 0, shown directly when
+   it is 0
+
+Note: `secrets.obfuscation_level` is a vestigial column from the old per-secret design.
+Submission always writes 0 and no read path consumes it — `routes/secrets.js` reads
+`group.room_config.deniability` instead. Don't rewire it without reviving the UI too.
 
 ## Environment Variables
 - `DATABASE_URL` — PostgreSQL connection string
