@@ -51,11 +51,6 @@ export async function initDb() {
     END $$;
 
     DO $$ BEGIN
-      ALTER TABLE groups ADD COLUMN IF NOT EXISTS match_mode VARCHAR(50) DEFAULT 'semantic';
-    EXCEPTION WHEN others THEN NULL;
-    END $$;
-
-    DO $$ BEGIN
       ALTER TABLE groups ADD COLUMN IF NOT EXISTS room_config JSONB DEFAULT '{}';
     EXCEPTION WHEN others THEN NULL;
     END $$;
