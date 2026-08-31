@@ -34,4 +34,4 @@ Railway.
 key is set). During that first redeploy an old replica may still be serving without the key, so a few
 requests can briefly show `[encrypted — …]` in place of content; it resolves as soon as cutover finishes. No key rotation: changing the key makes old rows unreadable (they render as an
 `[encrypted — …]` marker, never a crash). AI matching uses the Anthropic API. Auth via `auth-service`
-(SSO). See `../PORTFOLIO.md`.
+(SSO).
