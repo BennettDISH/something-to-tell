@@ -392,7 +392,7 @@ export default function GroupView() {
     if (!newSecret.trim()) return;
     setError(''); setSuccess('');
     try {
-      await addSecret(id, newSecret.trim(), 0);
+      await addSecret(id, newSecret.trim());
       setNewSecret('');
       setSuccess('Secret sealed. Submit it when you\'re ready.');
       await load();

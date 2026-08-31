@@ -74,7 +74,6 @@ export async function initDb() {
       group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
       central_user_id INTEGER NOT NULL REFERENCES profiles(central_user_id),
       content TEXT NOT NULL,
-      obfuscation_level INTEGER DEFAULT 3,
       status VARCHAR(20) DEFAULT 'sealed',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );

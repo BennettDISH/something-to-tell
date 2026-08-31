@@ -32,7 +32,7 @@ src/                      # React frontend
 ## Key Flows
 1. User sets AI provider + API key in Settings
 2. User creates/joins a group, shares join code
-3. User submits a secret with obfuscation level (0-10 decoys)
+3. User submits a secret (decoy count is a room-level setting: `room_config.deniability`)
 4. Backend compares new secret against all others in group using submitter's AI key
 5. If AI says match (confidence >= 0.6), vault opens — both secrets revealed with obfuscation
 

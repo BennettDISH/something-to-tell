@@ -83,9 +83,6 @@ export default function Admin() {
                       </div>
                       <div>
                         <span className={`badge badge--${s.status}`}>{s.status}</span>
-                        {s.obfuscation_level > 0 && (
-                          <span className="badge badge--count" style={{ marginLeft: '0.5rem' }}>{s.obfuscation_level} decoys</span>
-                        )}
                       </div>
                     </div>
                   </div>
