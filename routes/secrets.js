@@ -27,8 +27,8 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
     // Vault matches involving my secrets
     const { rows: matches } = await pool.query(
       `SELECT vm.*,
-        sa.content as secret_a_content, sa.central_user_id as user_a_id, sa.obfuscation_level as obf_a,
-        sb.content as secret_b_content, sb.central_user_id as user_b_id, sb.obfuscation_level as obf_b,
+        sa.content as secret_a_content, sa.central_user_id as user_a_id,
+        sb.content as secret_b_content, sb.central_user_id as user_b_id,
         pa.username as user_a_name, pb.username as user_b_name
        FROM vault_matches vm
        JOIN secrets sa ON vm.secret_a_id = sa.id
@@ -95,7 +95,7 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
 router.post('/group/:groupId', authenticate, async (req, res) => {
   try {
     const { groupId } = req.params;
-    const { content, obfuscation_level = 3 } = req.body;
+    const { content } = req.body;
 
     const { rows: membership } = await pool.query(
       'SELECT * FROM group_members WHERE group_id = $1 AND central_user_id = $2',
@@ -104,8 +104,8 @@ router.post('/group/:groupId', authenticate, async (req, res) => {
     if (!membership[0]) return res.status(403).json({ error: 'Not a member' });
 
     const { rows: [newSecret] } = await pool.query(
-      'INSERT INTO secrets (group_id, central_user_id, content, obfuscation_level) VALUES ($1,$2,$3,$4) RETURNING *',
-      [groupId, req.user.central_user_id, encrypt(content), obfuscation_level]
+      'INSERT INTO secrets (group_id, central_user_id, content) VALUES ($1,$2,$3) RETURNING *',
+      [groupId, req.user.central_user_id, encrypt(content)]
     );
 
     res.status(201).json({ secret: { ...newSecret, content } });

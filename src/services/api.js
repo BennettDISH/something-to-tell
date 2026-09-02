@@ -30,10 +30,10 @@ export const leaveGroup = (id) =>
 
 // Secrets
 export const getGroupSecrets = (groupId) => request(`/api/secrets/group/${groupId}`);
-export const addSecret = (groupId, content, obfuscation_level) =>
+export const addSecret = (groupId, content) =>
   request(`/api/secrets/group/${groupId}`, {
     method: 'POST',
-    body: JSON.stringify({ content, obfuscation_level }),
+    body: JSON.stringify({ content }),
   });
 export const submitSecret = (id) =>
   request(`/api/secrets/${id}/submit`, { method: 'PATCH' });
