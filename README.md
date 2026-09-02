@@ -37,4 +37,4 @@ requests can briefly show `[encrypted — …]` in place of content; it resolves
 `[encrypted — …]` marker, never a crash). AI credentials are per-user, not environment variables: each
 user saves their own Anthropic or OpenAI key in **Settings** (stored in `ai_configs`, read through
 `getUserAiConfig` in `services/aiService.js`). Auth via `auth-service`
-(SSO). See `../PORTFOLIO.md`.
+(SSO).
