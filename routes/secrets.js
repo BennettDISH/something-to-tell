@@ -224,7 +224,7 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
           // Add a small delay between calls to help with rate limits
           if (allResults.length > 0 || errors > 0) await sleep(500);
 
-          const result = await compareSecrets(aiConfig, a.content, b.content, group.ai_prompt, group.match_mode, group.room_config);
+          const result = await compareSecrets(aiConfig, a.content, b.content, group.ai_prompt, group.room_config);
 
           const isMatch = result.match && result.confidence >= 0.6;
 
