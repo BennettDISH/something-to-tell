@@ -6,13 +6,14 @@ quotes secrets are encrypted at rest (AES-256-GCM) **when `ENCRYPTION_KEY` is se
 server stores plaintext and warns loudly at boot.
 
 ## Stack
-React 19 + Vite · Express · Postgres · Anthropic SDK (AI matching) · SSO via `auth-service`
+React 19 + Vite · Express · Postgres · Anthropic + OpenAI SDKs (AI matching) · SSO via `auth-service`
 
 ## Getting started
 ```bash
 npm install
-cp .env.example .env      # DATABASE_URL, JWT_SECRET, ENCRYPTION_KEY, ANTHROPIC key (see services/),
-                          # AUTH_SERVICE_URL, SSO_CLIENT_ID/SECRET, VITE_AUTH_SERVICE_URL, VITE_SSO_CLIENT_ID
+cp .env.example .env      # DATABASE_URL, JWT_SECRET, ENCRYPTION_KEY, AUTH_SERVICE_URL,
+                          # SSO_CLIENT_ID/SECRET, VITE_AUTH_SERVICE_URL, VITE_SSO_CLIENT_ID
+                          # No AI key goes here — each user saves their own in Settings.
 
 npm run server            # Express API (node --watch server.js)
 npm run dev               # Vite dev server
@@ -33,5 +34,7 @@ Railway.
 (`enc:v1:` prefix; legacy plaintext rows are backfill-encrypted automatically at the next boot after the
 key is set). During that first redeploy an old replica may still be serving without the key, so a few
 requests can briefly show `[encrypted — …]` in place of content; it resolves as soon as cutover finishes. No key rotation: changing the key makes old rows unreadable (they render as an
-`[encrypted — …]` marker, never a crash). AI matching uses the Anthropic API. Auth via `auth-service`
+`[encrypted — …]` marker, never a crash). AI credentials are per-user, not environment variables: each
+user saves their own Anthropic or OpenAI key in **Settings** (stored in `ai_configs`, read through
+`getUserAiConfig` in `services/aiService.js`). Auth via `auth-service`
 (SSO). See `../PORTFOLIO.md`.
