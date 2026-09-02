@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getGroup, updateGroup, getGroupSecrets, addSecret, submitSecret, unsubmitSecret, triggerCompare, deleteSecret, getAdminLogs, deleteGroup } from '../services/api';
+import { getGroup, updateGroup, getGroupSecrets, addSecret, submitSecret, unsubmitSecret, triggerCompare, deleteSecret, getAdminLogs, deleteGroup, leaveGroup } from '../services/api';
 
 const PURPOSES = [
   { value: 'fun', label: 'Fun & Games', icon: '\u{1F389}', description: 'Lighthearted, silly, embarrassing confessions — keep it playful' },
@@ -358,6 +358,14 @@ export default function GroupView() {
     } catch (err) { setError(err.message); }
   };
 
+  const handleLeaveGroup = async () => {
+    if (!window.confirm('Are you sure you want to leave this vault? Any secrets you\'ve contributed will stay behind unless you delete them first.')) return;
+    try {
+      await leaveGroup(id);
+      navigate('/');
+    } catch (err) { setError(err.message); }
+  };
+
   const load = async () => {
     try {
       const [groupData, secretsData] = await Promise.all([getGroup(id), getGroupSecrets(id)]);
@@ -522,6 +530,14 @@ export default function GroupView() {
                     DELETE VAULT
                   </button>
                 </div>
+              </div>
+            )}
+
+            {!isGroupAdmin && (
+              <div style={{ borderTop: '1px solid rgba(255, 68, 68, 0.2)', paddingTop: '1rem' }}>
+                <button className="btn btn--danger btn--full" style={{ padding: '6px', fontSize: '0.7rem' }} onClick={handleLeaveGroup}>
+                  LEAVE VAULT
+                </button>
               </div>
             )}
           </div>
