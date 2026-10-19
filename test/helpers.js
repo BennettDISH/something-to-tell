@@ -90,7 +90,11 @@ async function startOpenAI() {
     calls.push({ authorization: req.headers.authorization, model: body.model, kind: /decoy/i.test(system) ? 'decoys' : 'compare' });
     let content;
     if (/decoy/i.test(system)) {
-      content = JSON.stringify({ fakes: ['I once ate a whole cake alone', 'I still sleep with a nightlight'] });
+      const decoys = ['I once ate a whole cake alone', 'I still sleep with a nightlight'];
+      // Other shapes a model replies with: decoys keyed by number, or none at all.
+      if (/numbered/.test(user)) content = JSON.stringify({ 1: decoys[0], 2: decoys[1] });
+      else if (/nodecoys/.test(user)) content = JSON.stringify({ fakes: [] });
+      else content = JSON.stringify({ fakes: decoys });
     } else {
       const match = (user.match(/alpha/g) || []).length >= 2;
       content = JSON.stringify({

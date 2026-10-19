@@ -86,4 +86,29 @@ describe('opened vaults', () => {
       assert.ok(texts.every((t) => m.ai_reasoning.includes(t)));
     }
   });
+
+  it('decoys that come back keyed by number are still whole decoys', async () => {
+    const texts = ['numbered: my alpha hamster escaped twice', 'numbered: I sold my alpha turtle'];
+    const r = await room(2, texts);
+    assert.equal((await r.compare()).body.matches.length, 1);
+    const [m] = (await r.view(r.members[0])).body.matches;
+    for (const list of [m.obfuscated_a, m.obfuscated_b]) {
+      assert.equal(list.length, 3, JSON.stringify(list));
+      assert.ok(list.includes('I once ate a whole cake alone') && list.includes('I still sleep with a nightlight'));
+    }
+  });
+
+  it('a room with decoys opens no vault when the AI gives back none, and tries again next run', async () => {
+    const texts = ['nodecoys: my alpha gerbil bit the vet', 'nodecoys: an alpha goose chased me'];
+    const r = await room(2, texts);
+    const run = await r.compare();
+    assert.equal(run.status, 200);
+    assert.equal(run.body.matches.length, 0);
+    assert.equal(run.body.errors, 1);
+    for (const who of r.members) {
+      const view = (await r.view(who)).body;
+      assert.deepEqual(view.matches, []);
+      assert.deepEqual(view.secrets.map((s) => s.status), ['submitted']);
+    }
+  });
 });
