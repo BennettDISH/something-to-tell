@@ -24,11 +24,13 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
       [groupId, req.user.central_user_id]
     );
 
-    // Vault matches involving my secrets
+    // Vault matches involving my secrets. Each side is shown only through
+    // obfuscated_a/_b, where the real secret sits among the room's decoys; the raw
+    // contents stay server-side, or anyone with devtools could pick the real one out.
     const { rows: matches } = await pool.query(
       `SELECT vm.*,
-        sa.content as secret_a_content, sa.central_user_id as user_a_id,
-        sb.content as secret_b_content, sb.central_user_id as user_b_id,
+        sa.central_user_id as user_a_id,
+        sb.central_user_id as user_b_id,
         pa.username as user_a_name, pb.username as user_b_name
        FROM vault_matches vm
        JOIN secrets sa ON vm.secret_a_id = sa.id
@@ -80,8 +82,7 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
 
     res.json({
       secrets: mySecrets.map((r) => decryptFields(r, ['content'])),
-      matches: matches.map((r) =>
-        decryptFields(r, ['secret_a_content', 'secret_b_content', 'ai_reasoning', 'obfuscated_a', 'obfuscated_b'])),
+      matches: matches.map((r) => decryptFields(r, ['ai_reasoning', 'obfuscated_a', 'obfuscated_b'])),
       otherMembers: otherCounts,
       submittedStats: submittedStats,
       comparisons: myComparisons.map((r) => decryptFields(r, ['user_summary'])),
