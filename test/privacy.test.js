@@ -32,6 +32,18 @@ async function room(deniability, texts) {
   };
 }
 
+describe('comparison runs', () => {
+  it("the run's response doesn't hand the room admin other members' secrets", async () => {
+    const texts = ['My alpha secret is that I cheated on the bar exam', 'An alpha confession: I read my sister\'s diary'];
+    const r = await room(2, texts);
+    const run = await r.compare();
+    assert.equal(run.status, 200);
+    assert.equal(run.body.matches.length, 1, 'the UI still gets a match count');
+    const body = JSON.stringify(run.body);
+    for (const t of texts) assert.ok(!body.includes(t), `"${t}" is in the room admin's response`);
+  });
+});
+
 describe('opened vaults', () => {
   it('a vault without decoys still shows the full reasoning, since both secrets are shown anyway', async () => {
     const texts = ['I named my goldfish alpha', 'My alpha cat bites everyone'];
