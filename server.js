@@ -16,6 +16,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.set('trust proxy', 1); // behind Railway's proxy — correct client IPs for the join limit
+
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(morgan('tiny'));

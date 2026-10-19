@@ -43,7 +43,10 @@ src/                      # React frontend
 
 ## Key Flows
 1. Room admin sets AI provider + API key in Settings — only the admin's key is ever used
-2. User creates/joins a group, shares join code
+2. User creates/joins a group, shares join code. New codes are 16 hex characters; rooms
+   from before have 8-character codes, which still work. Ten wrong codes from one client IP
+   within 15 minutes shut that IP out of joining (429) until the window ends — in-process,
+   and it relies on `trust proxy` (one hop, Railway's) in `server.js` for real client IPs.
 3. User writes a secret (SEAL SECRET) — content only, no per-secret options; it is
    stored `sealed` and no AI call is made on write. The decoy count is a room rule
    (`room_config.deniability`, 0-10), set by the group admin in the room's

@@ -158,8 +158,8 @@ export async function startApp({ adminCentralUserIds = '', db: sharedDb } = {}) 
     await new Promise((r) => setTimeout(r, 100));
   }
 
-  const request = async (method, url, { token, body } = {}) => {
-    const headers = {};
+  const request = async (method, url, { token, body, headers: extraHeaders } = {}) => {
+    const headers = { ...extraHeaders };
     if (token) headers.Authorization = `Bearer ${token}`;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     const res = await fetch(base + url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });

@@ -65,6 +65,36 @@ describe('groups', () => {
     const again = await member.as('POST', '/api/groups/join', { code: group.join_code });
     assert.equal(again.body.message, 'Already a member');
   });
+
+  it('new rooms get 16-character join codes, and old 8-character codes still work', async () => {
+    const admin = await app.guest();
+    const group = await makeGroup(admin);
+    assert.match(group.join_code, /^[0-9a-f]{16}$/);
+
+    const { rows: [old] } = await app.db.query(
+      "INSERT INTO groups (name, join_code, created_by) VALUES ('Old room', '0a1b2c3d', $1) RETURNING id",
+      [admin.user.central_user_id],
+    );
+    const member = await app.guest();
+    const joined = await member.as('POST', '/api/groups/join', { code: '0a1b2c3d' });
+    assert.equal(joined.status, 201);
+    assert.equal(joined.body.group.id, old.id);
+  });
+
+  it('a client that keeps guessing join codes is shut out, whatever account it uses, without locking out others', async () => {
+    const group = await makeGroup(await app.guest());
+    // The app trusts one proxy hop, as on Railway, so each forwarded address is its own client.
+    const join = async (ip, code) => {
+      const g = await app.guest();
+      return app.request('POST', '/api/groups/join', { token: g.token, body: { code }, headers: { 'X-Forwarded-For': ip } });
+    };
+
+    for (let i = 0; i < 10; i++) assert.equal((await join('203.0.113.7', `wrong${i}`)).status, 404, `guess ${i}`);
+    assert.equal((await join('203.0.113.7', 'wrong10')).status, 429);
+    assert.equal((await join('203.0.113.7', group.join_code)).status, 429, 'a right code is refused too once over the limit');
+
+    assert.equal((await join('203.0.113.8', group.join_code)).status, 201);
+  });
 });
 
 describe('secrets', () => {

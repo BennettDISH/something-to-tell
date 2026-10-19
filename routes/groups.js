@@ -5,8 +5,33 @@ import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
 
+// 16 hex characters (64 bits). Rooms made before this have 8-character codes, which keep
+// working: a join looks the code up exactly as stored.
 function generateJoinCode() {
-  return crypto.randomBytes(4).toString('hex');
+  return crypto.randomBytes(8).toString('hex');
+}
+
+// A join code is all that keeps a stranger out of a room, and guest accounts are free, so
+// wrong codes are limited per client IP rather than per account. Once a client is over the
+// limit even a right code is refused, or the limit would still tell a guesser when it hit.
+// In-process only, like the one-run-per-room guard in secrets.js: fine while the app runs
+// as one instance.
+const MAX_FAILED_JOINS = 10;
+const FAILED_JOIN_WINDOW_MS = 15 * 60 * 1000;
+const failedJoins = new Map(); // ip -> { count, resetAt }
+
+function joinsBlocked(ip, now = Date.now()) {
+  const entry = failedJoins.get(ip);
+  return !!entry && entry.resetAt > now && entry.count >= MAX_FAILED_JOINS;
+}
+
+function recordFailedJoin(ip, now = Date.now()) {
+  if (failedJoins.size > 10000) {
+    for (const [key, entry] of failedJoins) if (entry.resetAt <= now) failedJoins.delete(key);
+  }
+  const entry = failedJoins.get(ip);
+  if (!entry || entry.resetAt <= now) failedJoins.set(ip, { count: 1, resetAt: now + FAILED_JOIN_WINDOW_MS });
+  else entry.count++;
 }
 
 // List groups the user belongs to
@@ -74,9 +99,15 @@ router.post('/', authenticate, async (req, res) => {
 // Join group by code
 router.post('/join', authenticate, async (req, res) => {
   try {
+    if (joinsBlocked(req.ip)) {
+      return res.status(429).json({ error: 'Too many wrong join codes. Try again in a few minutes.' });
+    }
     const { code } = req.body;
     const { rows: [group] } = await pool.query('SELECT * FROM groups WHERE join_code = $1', [code]);
-    if (!group) return res.status(404).json({ error: 'Invalid join code' });
+    if (!group) {
+      recordFailedJoin(req.ip);
+      return res.status(404).json({ error: 'Invalid join code' });
+    }
 
     const { rows: existing } = await pool.query(
       'SELECT * FROM group_members WHERE group_id = $1 AND central_user_id = $2',
