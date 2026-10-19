@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../config/db.js';
 import { authenticate, isAdmin } from '../middleware/auth.js';
+import { requireEncryption } from '../middleware/encryption.js';
 import { getUserAiConfig, compareSecrets, generateObfuscation, shuffleWithSecret, describeAiError } from '../services/aiService.js';
 import { encrypt, encryptArray, decrypt, decryptFields, tryDecrypt } from '../config/crypto.js';
 
@@ -118,7 +119,7 @@ const MAX_SECRET_LENGTH = 2000;
 const MAX_SUBMITTED_PER_MEMBER = 10;
 
 // Add a secret (sealed — no AI call)
-router.post('/group/:groupId', authenticate, async (req, res) => {
+router.post('/group/:groupId', authenticate, requireEncryption, async (req, res) => {
   try {
     const { groupId } = req.params;
     const { content } = req.body;
@@ -215,7 +216,7 @@ function oneRunPerRoom(handler) {
 }
 
 // Admin: trigger AI comparison on all submitted secrets in a group
-router.post('/group/:groupId/compare', authenticate, oneRunPerRoom(async (req, res) => {
+router.post('/group/:groupId/compare', authenticate, requireEncryption, oneRunPerRoom(async (req, res) => {
   try {
     const { groupId } = req.params;
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../config/db.js';
 import { authenticate } from '../middleware/auth.js';
+import { requireEncryption } from '../middleware/encryption.js';
 import { getUserAiConfig, testConnection } from '../services/aiService.js';
 import { encrypt } from '../config/crypto.js';
 
@@ -20,7 +21,7 @@ router.get('/config', authenticate, async (req, res) => {
 });
 
 // Save/update AI config
-router.put('/config', authenticate, async (req, res) => {
+router.put('/config', authenticate, requireEncryption, async (req, res) => {
   try {
     const { provider, api_key, model } = req.body;
     if (!provider || !api_key) {

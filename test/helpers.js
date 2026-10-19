@@ -119,8 +119,9 @@ async function startOpenAI() {
 }
 
 /** Start Postgres, the stand-ins and the app. Returns helpers and stop(). Pass `db` (from
- *  startPostgres) to boot against an existing database; stop() then leaves it running. */
-export async function startApp({ adminCentralUserIds = '', db: sharedDb } = {}) {
+ *  startPostgres) to boot against an existing database; stop() then leaves it running.
+ *  `env` overrides the server's environment (an empty string unsets a variable). */
+export async function startApp({ adminCentralUserIds = '', db: sharedDb, env = {} } = {}) {
   const db = sharedDb || await startPostgres();
   const waypoint = await startWaypoint();
   const openai = await startOpenAI();
@@ -139,6 +140,7 @@ export async function startApp({ adminCentralUserIds = '', db: sharedDb } = {}) 
       SSO_CLIENT_SECRET: CLIENT_SECRET,
       ADMIN_CENTRAL_USER_IDS: adminCentralUserIds,
       OPENAI_BASE_URL: `${openai.url}/v1`,
+      ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

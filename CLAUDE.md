@@ -18,8 +18,8 @@ Mutual secret exchange platform. Users join groups, submit secrets, and AI deter
 
 - `npm test` — `test/api.test.js` (auth, groups, secrets and AI keys encrypted at rest, a full comparison
   that opens a vault), `test/privacy.test.js` (what runs, vaults and leavers expose to other members),
-  `test/limits.test.js` (secret size and submit caps) and `test/backfill.test.js` (plaintext rows encrypted
-  at the next boot). `test/helpers.js`
+  `test/limits.test.js` (secret size and submit caps), `test/backfill.test.js` (plaintext rows encrypted
+  at the next boot) and `test/encryption-key.test.js` (a missing or wrong key). `test/helpers.js`
   spawns the real `server.js` against PGlite on the Postgres wire protocol, with stand-in Waypoint (guest
   sign-in) and OpenAI (via `OPENAI_BASE_URL`). PGlite runs one transaction at a time.
 
@@ -76,8 +76,10 @@ nothing consumes it.
 - `ENCRYPTION_KEY` — enables AES-256-GCM at-rest encryption (`config/crypto.js`) for
   secrets.content, ai_configs.api_key, vault_matches.ai_reasoning/obfuscated_a/b, and
   comparisons.ai_reasoning/user_summary. Values carry an `enc:v1:` prefix; `initDb()`
-  backfill-encrypts legacy plaintext rows idempotently at boot. Unset ⇒ plaintext +
-  loud boot warning. No key rotation — changing it strands old rows (readable only as
+  backfill-encrypts legacy plaintext rows idempotently at boot. Unset ⇒ in production,
+  saving a secret, an AI key or running a comparison returns 503 (`middleware/encryption.js`);
+  elsewhere plaintext. Either way a loud boot warning. Before the backfill, `initDb()` also
+  counts stored ciphertext the current key cannot decrypt and logs it loudly. No key rotation — changing it strands old rows (readable only as
   an `[encrypted — …]` marker). Encrypt on write in routes; decrypt at read choke
   points (`decryptFields`) — API response shapes are unchanged.
 - `AUTH_SERVICE_URL` — Central auth service URL

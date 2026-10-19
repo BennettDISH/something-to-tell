@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { encryptionEnabled, encrypt, isEncrypted } from './crypto.js';
+import { encryptionEnabled, encrypt, isEncrypted, tryDecrypt } from './crypto.js';
 const { Pool } = pg;
 
 const pool = new Pool({
@@ -105,14 +105,53 @@ export async function initDb() {
     );
   `);
 
+  await warnIfStoredRowsUnreadable();
   if (encryptionEnabled) {
     await encryptExistingRows();
+  } else if (process.env.NODE_ENV === 'production') {
+    console.error(
+      '⚠ ENCRYPTION_KEY is not set — saving secrets and AI keys is refused (503) until it is. ' +
+      'Set it to enable at-rest encryption; existing rows are encrypted automatically at next boot.'
+    );
   } else {
     console.warn(
       '⚠ ENCRYPTION_KEY is not set — secrets and API keys are stored in PLAINTEXT. ' +
       'Set it to enable at-rest encryption; existing rows are encrypted automatically at next boot.'
     );
   }
+}
+
+// Every column that holds encrypted values.
+const ENCRYPTED_COLUMNS = [
+  { table: 'secrets', cols: ['content'] },
+  { table: 'ai_configs', cols: ['api_key'] },
+  { table: 'vault_matches', cols: ['ai_reasoning', 'obfuscated_a', 'obfuscated_b'] },
+  { table: 'comparisons', cols: ['ai_reasoning', 'user_summary'] },
+];
+
+// A changed or missing ENCRYPTION_KEY crashes nothing: unreadable rows show a marker and
+// compare skips them. So nobody notices, while new rows go in under the new key and the
+// database ends up mixed. Say so loudly at boot. Runs before the backfill, so it only sees
+// ciphertext that was already there, and it logs counts only, never content.
+async function warnIfStoredRowsUnreadable() {
+  let unreadable = 0;
+  for (const { table, cols } of ENCRYPTED_COLUMNS) {
+    const { rows } = await pool.query(`SELECT ${cols.join(', ')} FROM ${table}`);
+    for (const row of rows) {
+      for (const col of cols) {
+        const values = Array.isArray(row[col]) ? row[col] : [row[col]];
+        unreadable += values.filter((v) => isEncrypted(v) && !tryDecrypt(v).ok).length;
+      }
+    }
+  }
+  if (!unreadable) return;
+  console.error(
+    encryptionEnabled
+      ? `⚠ ENCRYPTION_KEY cannot decrypt ${unreadable} stored value(s) — they were written under a different key. ` +
+        'They show as an "[encrypted — …]" marker and comparisons skip them, while new rows are written under the ' +
+        'current key. Put the original ENCRYPTION_KEY back.'
+      : `⚠ ${unreadable} stored value(s) are encrypted but ENCRYPTION_KEY is not set — they cannot be read until it is.`
+  );
 }
 
 // One-time (idempotent) backfill: encrypt any plaintext rows left from before
@@ -132,13 +171,7 @@ async function encryptExistingRows() {
     return;
   }
   try {
-    const tables = [
-      { table: 'secrets', cols: ['content'] },
-      { table: 'ai_configs', cols: ['api_key'] },
-      { table: 'vault_matches', cols: ['ai_reasoning', 'obfuscated_a', 'obfuscated_b'] },
-      { table: 'comparisons', cols: ['ai_reasoning', 'user_summary'] },
-    ];
-    for (const { table, cols } of tables) {
+    for (const { table, cols } of ENCRYPTED_COLUMNS) {
       const { rows } = await pool.query(`SELECT id, ${cols.join(', ')} FROM ${table}`);
       let updated = 0;
       for (const row of rows) {

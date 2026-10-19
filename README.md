@@ -2,8 +2,9 @@
 
 A mutual secret-exchange platform: people in a group submit secrets, and an AI layer handles matching
 and obfuscation so exchanges stay mutual and anonymized. Secrets, users' AI API keys, and AI text that
-quotes secrets are encrypted at rest (AES-256-GCM) **when `ENCRYPTION_KEY` is set** — without it the
-server stores plaintext and warns loudly at boot.
+quotes secrets are encrypted at rest (AES-256-GCM) **when `ENCRYPTION_KEY` is set** — without it,
+production refuses to save them (503) and other environments store plaintext, with a loud warning at
+boot either way. Boot also warns when the key cannot decrypt rows already stored.
 
 Live: https://something-to-tell-production.up.railway.app
 
