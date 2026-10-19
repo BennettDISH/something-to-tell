@@ -294,11 +294,10 @@ router.post('/group/:groupId/compare', authenticate, oneRunPerRoom(async (req, r
             );
 
             await pool.query("UPDATE secrets SET status = 'matched' WHERE id IN ($1, $2)", [a.id, b.id]);
-            newMatches.push({
-              match: decryptFields(match, ['ai_reasoning', 'obfuscated_a', 'obfuscated_b']),
-              reasoning: result.reasoning,
-              confidence: result.confidence,
-            });
+            // The room admin who runs this is usually not one of the pair: send no
+            // content, reasoning or decoy lists. The two members read their vault from
+            // GET /group/:groupId.
+            newMatches.push({ id: match.id, confidence: result.confidence });
           }
         } catch (aiErr) {
           console.error('AI comparison failed:', aiErr.message);
