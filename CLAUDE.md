@@ -17,7 +17,9 @@ Mutual secret exchange platform. Users join groups, submit secrets, and AI deter
 - `npm run server` — Dev server with --watch
 
 - `npm test` — `test/api.test.js` (auth, groups, secrets and AI keys encrypted at rest, a full comparison
-  that opens a vault) and `test/backfill.test.js` (plaintext rows encrypted at the next boot). `test/helpers.js`
+  that opens a vault), `test/privacy.test.js` (what runs, vaults and leavers expose to other members),
+  `test/limits.test.js` (secret size and submit caps) and `test/backfill.test.js` (plaintext rows encrypted
+  at the next boot). `test/helpers.js`
   spawns the real `server.js` against PGlite on the Postgres wire protocol, with stand-in Waypoint (guest
   sign-in) and OpenAI (via `OPENAI_BASE_URL`). PGlite runs one transaction at a time.
 
@@ -46,13 +48,18 @@ src/                      # React frontend
    stored `sealed` and no AI call is made on write. The decoy count is a room rule
    (`room_config.deniability`, 0-10), set by the group admin in the room's
    intelligence rules, and applies to every reveal in that room.
-4. User marks it SUBMIT when ready (`sealed` → `submitted`); UNSUBMIT puts it back
+4. User marks it SUBMIT when ready (`sealed` → `submitted`); UNSUBMIT puts it back.
+   Secrets are capped at 2000 characters and 10 submitted per member per room (they cost
+   the room admin's AI key).
 5. Room admin hits RUN COMPARISON (`POST /api/secrets/group/:groupId/compare`, 403 for
    non-admins) — the backend compares every cross-member pair of submitted secrets using
-   the **admin's** AI key, not the submitters'
+   the **admin's** AI key, not the submitters'. Only current members' secrets take part;
+   someone who left keeps theirs out. The response carries counts and match ids only.
 6. If AI says match (confidence >= 0.6), vault opens — both secrets revealed, padded
    with AI-generated decoys when the room's `deniability` is above 0, shown directly
-   when it is 0
+   when it is 0. The AI's raw reasoning quotes both secrets, so a vault with decoys
+   shows the pair's scrubbed `user_summary` as its "AI Consensus" instead. If the AI
+   gives back no usable decoys, no vault opens and the pair is retried next run.
 
 Note: `secrets.obfuscation_level` was a vestigial column from the old per-secret
 design. Its plumbing has been removed: fresh installs no longer create the column and
