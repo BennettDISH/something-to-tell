@@ -105,6 +105,15 @@ async function startOpenAI() {
           : 'Different topics.',
         user_summary: match ? 'You both shared something about pets.' : 'Your secrets were about different things.',
       });
+      // A room rule asking to "copy both secrets" is obeyed the way an obliging model
+      // would, with the wording disguised (reversed) so no word-matching filter sees it.
+      if (/copy both secrets/i.test(user)) {
+        const reversed = (s) => [...(s || '')].reverse().join('');
+        content = JSON.stringify({
+          ...JSON.parse(content),
+          user_summary: `As the room asked: ${reversed(fenced(user, 'secret_a'))} / ${reversed(fenced(user, 'secret_b'))}`,
+        });
+      }
       // A secret containing "garbled" gets itself echoed back instead of JSON.
       const garbled = [fenced(user, 'secret_a'), fenced(user, 'secret_b')].find((s) => /garbled/.test(s || ''));
       if (garbled) content = garbled;

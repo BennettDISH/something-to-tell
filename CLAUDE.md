@@ -33,6 +33,7 @@ config/crypto.js          # AES-256-GCM helpers (enc:v1: values, decryptFields)
 config/sso.js             # Central auth service helpers
 middleware/auth.js        # JWT verification; authenticateAdmin (ADMIN_CENTRAL_USER_IDS)
 services/aiService.js     # AI comparison + obfuscation generation
+services/summaries.js     # Fixed comparison summaries members read (never AI-written)
 routes/auth.js            # SSO callback, register, login, guest, profile
 routes/groups.js          # Group CRUD + join/leave
 routes/secrets.js         # Secret submission, admin-run comparison, admin logs
@@ -61,8 +62,14 @@ src/                      # React frontend
 6. If AI says match (confidence >= 0.6), vault opens — both secrets revealed, padded
    with AI-generated decoys when the room's `deniability` is above 0, shown directly
    when it is 0. The AI's raw reasoning quotes both secrets, so a vault with decoys
-   shows the pair's scrubbed `user_summary` as its "AI Consensus" instead. If the AI
+   shows the pair's `user_summary` as its "AI Consensus" instead. If the AI
    gives back no usable decoys, no vault opens and the pair is retried next run.
+7. Every `user_summary` members read is a fixed sentence from `services/summaries.js`,
+   picked from the outcome and the room's strategy; the AI is not asked for one. Room
+   admins' free-text rules go into the comparison prompt as instructions, so any text
+   the AI wrote for members could be steered into paraphrasing a secret. Older AI-written
+   summaries are swapped for the fixed one at read time, and members never get the AI's
+   confidence number. The reasoning stays for the site admin and no-decoy vaults.
 
 Note: `secrets.obfuscation_level` was a vestigial column from the old per-secret
 design. Its plumbing has been removed: fresh installs no longer create the column and

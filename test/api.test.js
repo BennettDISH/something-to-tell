@@ -225,8 +225,8 @@ describe('comparison and opened vaults', () => {
       assert.ok(sides.some((s) => s.includes(bobSecret)));
       assert.ok(sides.every((s) => s.includes('I once ate a whole cake alone')));
       // The AI's reasoning quotes both real secrets, which would point straight past the
-      // decoys, so a vault with decoys shows the scrubbed summary instead.
-      assert.equal(m.ai_reasoning, 'You both shared something about pets.');
+      // decoys, so a vault with decoys shows the pair's fixed summary instead.
+      assert.equal(m.ai_reasoning, "These secrets match under this room's rules.");
       assert.ok(!m.ai_reasoning.includes(annSecret) && !m.ai_reasoning.includes(bobSecret));
       assert.deepEqual([m.user_a_name, m.user_b_name].sort(), [ann.user.username, bob.user.username].sort());
     }

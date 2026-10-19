@@ -3,6 +3,7 @@ import pool from '../config/db.js';
 import { authenticate, isAdmin } from '../middleware/auth.js';
 import { requireEncryption } from '../middleware/encryption.js';
 import { getUserAiConfig, compareSecrets, generateObfuscation, shuffleWithSecret, describeAiError } from '../services/aiService.js';
+import { comparisonSummary, safeSummary, FAILED_SUMMARY, QUOTA_SUMMARY } from '../services/summaries.js';
 import { encrypt, encryptArray, decrypt, decryptFields, tryDecrypt } from '../config/crypto.js';
 
 const router = Router();
@@ -46,8 +47,8 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
 
     // The AI's reasoning quotes both real secrets ("for the admin", per its prompt). In a
     // vault with decoys that points straight past them, so those vaults show the pair's
-    // scrubbed user_summary instead. Both values are still ciphertext here and are
-    // decrypted with the rest below. Without decoys both secrets are shown anyway.
+    // fixed summary instead (plain text, which the decryptFields below passes through).
+    // Without decoys both secrets are shown anyway.
     if (matches.length) {
       const { rows: summaries } = await pool.query(
         `SELECT secret_a_id, secret_b_id, user_summary FROM comparisons
@@ -58,7 +59,7 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
         const hasDecoys = [m.obfuscated_a, m.obfuscated_b].some((list) => Array.isArray(list) && list.length > 1);
         if (!hasDecoys) continue;
         const pair = summaries.filter((s) => s.secret_a_id === m.secret_a_id && s.secret_b_id === m.secret_b_id).pop();
-        m.ai_reasoning = pair?.user_summary ?? null;
+        m.ai_reasoning = pair ? safeSummary(decrypt(pair.user_summary), true) : null;
       }
     }
 
@@ -84,11 +85,12 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
       [groupId]
     );
 
-    // Comparison results (vague summaries)
+    // Comparison results (fixed summaries; the AI's confidence number stays server-side,
+    // since room rules can steer it too)
     // ROOM ADMIN sees everything in the group. Regular members only see comparisons involving their own secrets.
     const isAdminOfGroup = membership[0].role === 'admin';
     const { rows: myComparisons } = await pool.query(
-      `SELECT c.id, c.matched, c.confidence, c.user_summary, c.created_at,
+      `SELECT c.id, c.matched, c.user_summary, c.created_at,
         CASE WHEN c.secret_a_id IN (SELECT id FROM secrets WHERE central_user_id = $2) THEN c.secret_a_id ELSE c.secret_b_id END as my_secret_id
        FROM comparisons c
        WHERE c.group_id = $1
@@ -106,7 +108,7 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
       matches: matches.map((r) => decryptFields(r, ['ai_reasoning', 'obfuscated_a', 'obfuscated_b'])),
       otherMembers: otherCounts,
       submittedStats: submittedStats,
-      comparisons: myComparisons.map((r) => decryptFields(r, ['user_summary'])),
+      comparisons: myComparisons.map((r) => ({ ...r, user_summary: safeSummary(decrypt(r.user_summary), r.matched) })),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -291,14 +293,15 @@ router.post('/group/:groupId/compare', authenticate, requireEncryption, oneRunPe
           const result = await compareSecrets(aiConfig, a.content, b.content, group.ai_prompt, group.room_config);
 
           const isMatch = result.match && result.confidence >= 0.6;
+          const summary = comparisonSummary(isMatch, group.room_config);
 
           await pool.query(
             `INSERT INTO comparisons (group_id, secret_a_id, secret_b_id, matched, confidence, ai_reasoning, user_summary)
              VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-            [groupId, a.id, b.id, isMatch, result.confidence, encrypt(result.reasoning), encrypt(result.user_summary || '')]
+            [groupId, a.id, b.id, isMatch, result.confidence, encrypt(result.reasoning), encrypt(summary)]
           );
 
-          allResults.push({ matched: isMatch, confidence: result.confidence, user_summary: result.user_summary });
+          allResults.push({ matched: isMatch, user_summary: summary });
 
           if (isMatch) {
             const deniability = group.room_config?.deniability || 0;
@@ -322,15 +325,15 @@ router.post('/group/:groupId/compare', authenticate, requireEncryption, oneRunPe
             // The room admin who runs this is usually not one of the pair: send no
             // content, reasoning or decoy lists. The two members read their vault from
             // GET /group/:groupId.
-            newMatches.push({ id: match.id, confidence: result.confidence });
+            newMatches.push({ id: match.id });
           }
         } catch (aiErr) {
           console.error('AI comparison failed:', describeAiError(aiErr));
           errors++;
           
-          let userMsg = 'Intelligence analysis failed for this pair.';
+          let userMsg = FAILED_SUMMARY;
           if (aiErr.message.includes('429') || aiErr.message.toLowerCase().includes('quota')) {
-            userMsg = 'AI Rate Limit/Quota exceeded. Please check your API billing or wait before retrying.';
+            userMsg = QUOTA_SUMMARY;
           }
 
           // Insert a failure record so we know it was attempted
