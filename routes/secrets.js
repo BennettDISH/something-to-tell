@@ -154,8 +154,28 @@ router.patch('/:id/unsubmit', authenticate, async (req, res) => {
   }
 });
 
+// One comparison run per room at a time. A second click or tab used to start a parallel
+// run that repeated every AI call on the room admin's key and, when both found the same
+// match, logged a permanent "analysis failed" entry next to it. In-process only: fine
+// while the app runs as one instance.
+const roomsComparing = new Set();
+function oneRunPerRoom(handler) {
+  return async (req, res) => {
+    const room = String(req.params.groupId);
+    if (roomsComparing.has(room)) {
+      return res.status(409).json({ error: 'A comparison is already running in this room' });
+    }
+    roomsComparing.add(room);
+    try {
+      await handler(req, res);
+    } finally {
+      roomsComparing.delete(room);
+    }
+  };
+}
+
 // Admin: trigger AI comparison on all submitted secrets in a group
-router.post('/group/:groupId/compare', authenticate, async (req, res) => {
+router.post('/group/:groupId/compare', authenticate, oneRunPerRoom(async (req, res) => {
   try {
     const { groupId } = req.params;
 
@@ -289,7 +309,7 @@ router.post('/group/:groupId/compare', authenticate, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}));
 
 // Admin: Get all comparison logs and secrets for the group (SITE ADMIN ONLY)
 router.get('/group/:groupId/admin/logs', authenticate, async (req, res) => {
