@@ -44,6 +44,25 @@ describe('comparison runs', () => {
   });
 });
 
+describe('leaving a room', () => {
+  it("takes the leaver's secrets out of later comparisons and the room's submitted count", async () => {
+    const leaverText = 'My alpha dog ran away and I never told anyone';
+    const r = await room(0, [leaverText, 'My alpha parrot swears at guests', 'I hate cilantro']);
+    const [leaver, stayer] = r.members;
+    assert.equal((await leaver.as('DELETE', `/api/groups/${r.group.id}/leave`)).status, 200);
+
+    assert.equal(Number((await r.view(r.admin)).body.submittedStats.submitted_count), 2);
+    const run = await r.compare();
+    assert.equal(run.status, 200);
+    assert.equal(run.body.compared, 2);
+    assert.equal(run.body.matches.length, 0);
+
+    const view = await r.view(stayer);
+    assert.deepEqual(view.body.matches, []);
+    assert.ok(!JSON.stringify(view.body).includes(leaverText));
+  });
+});
+
 describe('opened vaults', () => {
   it('a vault without decoys still shows the full reasoning, since both secrets are shown anyway', async () => {
     const texts = ['I named my goldfish alpha', 'My alpha cat bites everyone'];
