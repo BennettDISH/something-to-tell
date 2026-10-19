@@ -74,9 +74,13 @@ function startWaypoint() {
   });
 }
 
+// The text inside one of the prompt's fenced <secret_a>/<secret_b> blocks.
+const fenced = (prompt, label) => prompt.match(new RegExp(`<${label} nonce="[^"]+">\\n([\\s\\S]*?)\\n</${label}>`))?.[1];
+
 // Chat completions. A comparison prompt "matches" when the word "alpha" appears in both
-// secrets (twice in the prompt); a decoy prompt gets two fixed decoys back. Every call's
-// Authorization header is kept so tests can see which API key the app sent.
+// secrets (twice in the prompt); its reasoning quotes both secrets, as a real model's does.
+// A decoy prompt gets two fixed decoys back. Every call's Authorization header is kept so
+// tests can see which API key the app sent.
 async function startOpenAI() {
   const calls = [];
   const server = await jsonServer((req, body, send) => {
@@ -92,7 +96,9 @@ async function startOpenAI() {
       content = JSON.stringify({
         match,
         confidence: match ? 0.9 : 0.1,
-        reasoning: match ? 'Both are about the same pet.' : 'Different topics.',
+        reasoning: match
+          ? `Both are about the same pet: "${fenced(user, 'secret_a')}" and "${fenced(user, 'secret_b')}".`
+          : 'Different topics.',
         user_summary: match ? 'You both shared something about pets.' : 'Your secrets were about different things.',
       });
     }
