@@ -255,9 +255,7 @@ Respond with a JSON array of strings only, no other text:
       ],
       response_format: { type: 'json_object' },
     });
-    const content = res.choices[0].message.content;
-    const parsed = JSON.parse(content);
-    return Array.isArray(parsed) ? parsed : parsed.secrets || parsed.fakes || Object.values(parsed)[0];
+    return decoysFrom(JSON.parse(res.choices[0].message.content), count);
   }
 
   const res = await client.messages.create({
@@ -268,7 +266,23 @@ Respond with a JSON array of strings only, no other text:
   });
   const text = res.content[0].text;
   const jsonMatch = text.match(/\[[\s\S]*\]/);
-  return JSON.parse(jsonMatch[0]);
+  return decoysFrom(JSON.parse(jsonMatch[0]), count);
+}
+
+// Whole decoy strings from whatever JSON shape the model chose: an array, an object
+// holding one ({"fakes": [...]}), or one decoy per key ({"1": "...", "2": "..."}). The
+// last used to come back as a single string, and spreading it gave one-letter "decoys"
+// next to the real secret. None at all is an error, so the pair is retried on the next
+// run rather than opening a vault that shows the real secret with no cover.
+function decoysFrom(parsed, count) {
+  let list = parsed;
+  if (list && typeof list === 'object' && !Array.isArray(list)) {
+    const values = Object.values(list);
+    list = values.find(Array.isArray) ?? values;
+  }
+  const decoys = (Array.isArray(list) ? list : []).filter((s) => typeof s === 'string' && s.trim()).slice(0, count);
+  if (!decoys.length) throw new Error('AI returned no usable decoys');
+  return decoys;
 }
 
 export async function testConnection(config) {
