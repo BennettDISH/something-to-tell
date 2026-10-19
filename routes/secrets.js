@@ -73,11 +73,13 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
       [groupId, req.user.central_user_id]
     );
 
-    // Total submitted count for the group (for admin to know if ready)
+    // Total submitted count for the group (for admin to know if ready). Counts current
+    // members only, the same pool a comparison run draws from.
     const { rows: [submittedStats] } = await pool.query(
       `SELECT COUNT(*) FILTER (WHERE status = 'submitted') as submitted_count,
               COUNT(DISTINCT central_user_id) FILTER (WHERE status = 'submitted') as submitters
-       FROM secrets WHERE group_id = $1`,
+       FROM secrets WHERE group_id = $1
+         AND central_user_id IN (SELECT central_user_id FROM group_members WHERE group_id = $1)`,
       [groupId]
     );
 
@@ -212,9 +214,12 @@ router.post('/group/:groupId/compare', authenticate, oneRunPerRoom(async (req, r
     // Get group info (prompt/mode)
     const { rows: [group] } = await pool.query('SELECT * FROM groups WHERE id = $1', [groupId]);
 
-    // Get all submitted secrets (decrypted here once — the AI compares plaintext)
+    // Get all submitted secrets (decrypted here once — the AI compares plaintext). Only
+    // current members': a secret left behind by someone who left the room stays out, or
+    // a later run could still open a vault that shows it to whoever it matches.
     const { rows: submittedRows } = await pool.query(
-      "SELECT * FROM secrets WHERE group_id = $1 AND status = 'submitted'",
+      `SELECT * FROM secrets WHERE group_id = $1 AND status = 'submitted'
+         AND central_user_id IN (SELECT central_user_id FROM group_members WHERE group_id = $1)`,
       [groupId]
     );
     // Drop anything we could not decrypt. Every unreadable secret decrypts to the
