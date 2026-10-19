@@ -21,6 +21,12 @@ export async function getUserAiConfig(centralUserId) {
   return { ...rows[0], api_key: key.value };
 }
 
+// What may go in the server log about a failed AI call. Node's JSON.parse errors quote the
+// start of the bad reply, and a reply can echo a secret, so those become a fixed message.
+export function describeAiError(err) {
+  return err instanceof SyntaxError ? 'AI reply was not valid JSON' : err?.message;
+}
+
 function getClient(config) {
   console.log(`[AI] Initializing ${config.provider} client with model: ${config.model || 'default'}`);
   if (config.provider === 'openai') {
@@ -202,7 +208,7 @@ You MUST respond with valid JSON.`;
       console.log(`[AI] OpenAI response received. Status: success`);
       return scrubResult(JSON.parse(res.choices[0].message.content), secretA, secretB);
     } catch (err) {
-      console.error(`[AI] OpenAI Error: ${err.message}`);
+      console.error(`[AI] OpenAI Error: ${describeAiError(err)}`);
       throw err;
     }
   }
@@ -219,7 +225,7 @@ You MUST respond with valid JSON.`;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     return scrubResult(JSON.parse(jsonMatch[0]), secretA, secretB);
   } catch (err) {
-    console.error(`[AI] Anthropic Error: ${err.message}`);
+    console.error(`[AI] Anthropic Error: ${describeAiError(err)}`);
     throw err;
   }
 }

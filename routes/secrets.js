@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import pool from '../config/db.js';
 import { authenticate, isAdmin } from '../middleware/auth.js';
-import { getUserAiConfig, compareSecrets, generateObfuscation, shuffleWithSecret } from '../services/aiService.js';
+import { getUserAiConfig, compareSecrets, generateObfuscation, shuffleWithSecret, describeAiError } from '../services/aiService.js';
 import { encrypt, encryptArray, decrypt, decryptFields, tryDecrypt } from '../config/crypto.js';
 
 const router = Router();
@@ -324,7 +324,7 @@ router.post('/group/:groupId/compare', authenticate, oneRunPerRoom(async (req, r
             newMatches.push({ id: match.id, confidence: result.confidence });
           }
         } catch (aiErr) {
-          console.error('AI comparison failed:', aiErr.message);
+          console.error('AI comparison failed:', describeAiError(aiErr));
           errors++;
           
           let userMsg = 'Intelligence analysis failed for this pair.';
