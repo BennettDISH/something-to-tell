@@ -43,6 +43,24 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
       [groupId, req.user.central_user_id]
     );
 
+    // The AI's reasoning quotes both real secrets ("for the admin", per its prompt). In a
+    // vault with decoys that points straight past them, so those vaults show the pair's
+    // scrubbed user_summary instead. Both values are still ciphertext here and are
+    // decrypted with the rest below. Without decoys both secrets are shown anyway.
+    if (matches.length) {
+      const { rows: summaries } = await pool.query(
+        `SELECT secret_a_id, secret_b_id, user_summary FROM comparisons
+         WHERE group_id = $1 AND matched ORDER BY id`,
+        [groupId]
+      );
+      for (const m of matches) {
+        const hasDecoys = [m.obfuscated_a, m.obfuscated_b].some((list) => Array.isArray(list) && list.length > 1);
+        if (!hasDecoys) continue;
+        const pair = summaries.filter((s) => s.secret_a_id === m.secret_a_id && s.secret_b_id === m.secret_b_id).pop();
+        m.ai_reasoning = pair?.user_summary ?? null;
+      }
+    }
+
     // How many submitted secrets each other member has (not content)
     const { rows: otherCounts } = await pool.query(
       `SELECT p.username,
