@@ -24,7 +24,8 @@ npm run dev               # Vite dev server
 Production: `npm run build` then `npm start`.
 
 ## Test
-No automated tests yet.
+`npm test` runs the tests in `test/`: the real `server.js` against an in-memory Postgres (PGlite) with
+encryption on, plus stand-ins for the auth service and OpenAI, so no database, keys or network are needed.
 
 ## Environment variables
 - `DATABASE_URL`, `JWT_SECRET`, `PORT`, `NODE_ENV`

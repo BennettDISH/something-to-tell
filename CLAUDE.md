@@ -16,7 +16,12 @@ Mutual secret exchange platform. Users join groups, submit secrets, and AI deter
 - `npm start` — Start Express server
 - `npm run server` — Dev server with --watch
 
-There are no automated tests. Plans and known issues go in `docs/ROADMAP.md`.
+- `npm test` — `test/api.test.js` (auth, groups, secrets and AI keys encrypted at rest, a full comparison
+  that opens a vault) and `test/backfill.test.js` (plaintext rows encrypted at the next boot). `test/helpers.js`
+  spawns the real `server.js` against PGlite on the Postgres wire protocol, with stand-in Waypoint (guest
+  sign-in) and OpenAI (via `OPENAI_BASE_URL`). PGlite runs one transaction at a time.
+
+Plans and known issues go in `docs/ROADMAP.md`.
 
 ## Project Structure
 ```
