@@ -17,7 +17,9 @@ export default function AuthCallback() {
       setError('No authorization code received');
       return;
     }
-    if (state !== savedState) {
+    // A missing saved state must fail too: null === null would let a link carrying someone
+    // else's code (and no state) sign this browser in as them.
+    if (!savedState || state !== savedState) {
       setError('Invalid state parameter');
       return;
     }
