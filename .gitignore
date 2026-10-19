@@ -3,3 +3,10 @@ dist/
 .env
 *.log
 .DS_Store
+
+# Local env, logs, scratch and per-machine settings
+.env*
+!.env.example
+*.tmp.*
+scratch*
+.claude/settings.local.json

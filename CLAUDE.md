@@ -5,8 +5,9 @@ Mutual secret exchange platform. Users join groups, submit secrets, and AI deter
 ## Architecture
 - **Frontend**: React 19 + Vite + SCSS
 - **Backend**: Express.js serving `/dist` in production
-- **Database**: PostgreSQL (profiles, ai_configs, groups, group_members, secrets, vault_matches)
-- **Auth**: SSO via central auth service + local JWT
+- **Database**: PostgreSQL (profiles, ai_configs, groups, group_members, secrets, vault_matches, comparisons); schema created in `initDb()` on boot
+- **Auth**: SSO via central auth service + local JWT; email/password and one-click guest go through the auth service too. Site admin (the Admin page, `/api/admin`) is `ADMIN_CENTRAL_USER_IDS`.
+- **Live**: https://something-to-tell-production.up.railway.app
 - **AI**: User-provided API keys (Anthropic Claude / OpenAI GPT) for secret comparison and obfuscation generation
 
 ## Commands
@@ -15,17 +16,21 @@ Mutual secret exchange platform. Users join groups, submit secrets, and AI deter
 - `npm start` — Start Express server
 - `npm run server` — Dev server with --watch
 
+There are no automated tests. Plans and known issues go in `docs/ROADMAP.md`.
+
 ## Project Structure
 ```
 server.js                 # Express entry point
-config/db.js              # PostgreSQL pool + schema init
+config/db.js              # PostgreSQL pool + schema init + encryption backfill
+config/crypto.js          # AES-256-GCM helpers (enc:v1: values, decryptFields)
 config/sso.js             # Central auth service helpers
-middleware/auth.js         # JWT verification
+middleware/auth.js        # JWT verification; authenticateAdmin (ADMIN_CENTRAL_USER_IDS)
 services/aiService.js     # AI comparison + obfuscation generation
-routes/auth.js            # SSO auth endpoints
+routes/auth.js            # SSO callback, register, login, guest, profile
 routes/groups.js          # Group CRUD + join/leave
-routes/secrets.js         # Secret submission + AI matching
+routes/secrets.js         # Secret submission, admin-run comparison, admin logs
 routes/ai.js              # User AI config management
+routes/admin.js           # Site admin: all groups
 src/                      # React frontend
 ```
 
@@ -62,7 +67,9 @@ nothing consumes it.
   points (`decryptFields`) — API response shapes are unchanged.
 - `AUTH_SERVICE_URL` — Central auth service URL
 - `SSO_CLIENT_ID` / `SSO_CLIENT_SECRET` — OAuth client credentials
-- `VITE_AUTH_SERVICE_URL` / `VITE_SSO_CLIENT_ID` — Frontend SSO config
+- `VITE_AUTH_SERVICE_URL` / `VITE_SSO_CLIENT_ID` — Frontend SSO config (read in `src/services/authService.js`, baked in at build time)
+- `ADMIN_CENTRAL_USER_IDS` — comma-separated central user ids allowed on the site admin page
+- `PORT`, `NODE_ENV`
 
 ## Deployment
 Railway auto-deploy on push to main. See `railway.toml`.
