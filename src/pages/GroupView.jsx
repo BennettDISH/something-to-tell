@@ -681,6 +681,7 @@ export default function GroupView() {
                   onChange={(e) => setNewSecret(e.target.value)}
                   placeholder="Sealing a secret... It will only be revealed based on the room's intelligence rules."
                   required
+                  maxLength={2000}
                   style={{ background: 'rgba(10, 10, 15, 0.8)', fontSize: '1.1rem', minHeight: '100px' }}
                 />
               </div>

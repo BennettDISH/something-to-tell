@@ -112,11 +112,22 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
   }
 });
 
+// Every submitted secret goes to the AI once per other member's submitted secret, on the
+// room admin's own API key. These keep one member from running up that bill.
+const MAX_SECRET_LENGTH = 2000;
+const MAX_SUBMITTED_PER_MEMBER = 10;
+
 // Add a secret (sealed — no AI call)
 router.post('/group/:groupId', authenticate, async (req, res) => {
   try {
     const { groupId } = req.params;
     const { content } = req.body;
+    if (typeof content !== 'string' || !content.trim()) {
+      return res.status(400).json({ error: 'Write a secret first' });
+    }
+    if (content.length > MAX_SECRET_LENGTH) {
+      return res.status(400).json({ error: `Keep it under ${MAX_SECRET_LENGTH} characters` });
+    }
 
     const { rows: membership } = await pool.query(
       'SELECT * FROM group_members WHERE group_id = $1 AND central_user_id = $2',
@@ -144,6 +155,14 @@ router.patch('/:id/submit', authenticate, async (req, res) => {
     );
     if (!secret) return res.status(404).json({ error: 'Secret not found' });
     if (secret.status !== 'sealed') return res.status(400).json({ error: 'Secret is already ' + secret.status });
+
+    const { rows: [{ n }] } = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM secrets WHERE group_id = $1 AND central_user_id = $2 AND status = 'submitted'",
+      [secret.group_id, req.user.central_user_id]
+    );
+    if (n >= MAX_SUBMITTED_PER_MEMBER) {
+      return res.status(400).json({ error: `You can have at most ${MAX_SUBMITTED_PER_MEMBER} secrets submitted in a room at once` });
+    }
 
     const { rows: [updated] } = await pool.query(
       "UPDATE secrets SET status = 'submitted' WHERE id = $1 RETURNING *",
