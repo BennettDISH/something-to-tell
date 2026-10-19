@@ -101,6 +101,9 @@ async function startOpenAI() {
           : 'Different topics.',
         user_summary: match ? 'You both shared something about pets.' : 'Your secrets were about different things.',
       });
+      // A secret containing "garbled" gets itself echoed back instead of JSON.
+      const garbled = [fenced(user, 'secret_a'), fenced(user, 'secret_b')].find((s) => /garbled/.test(s || ''));
+      if (garbled) content = garbled;
     }
     send(200, {
       id: 'chatcmpl-test', object: 'chat.completion', created: 0, model: body.model,

@@ -42,6 +42,17 @@ describe('comparison runs', () => {
     const body = JSON.stringify(run.body);
     for (const t of texts) assert.ok(!body.includes(t), `"${t}" is in the room admin's response`);
   });
+
+  it("an AI reply that isn't JSON leaves no secret text in the server log", async () => {
+    // Node's JSON.parse error quotes the start of the bad input, and the reply can echo a secret.
+    const text = 'Quietly garbled: I still love my ex';
+    const r = await room(0, [text, 'I hate cilantro']);
+    const run = await r.compare();
+    assert.equal(run.status, 200);
+    assert.equal(run.body.errors, 1);
+    assert.match(app.log(), /AI comparison failed/);
+    assert.ok(!app.log().includes(text.slice(0, 10)), 'the log quotes the secret');
+  });
 });
 
 describe('leaving a room', () => {
