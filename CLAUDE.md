@@ -36,7 +36,7 @@ config/db.js              # PostgreSQL pool + schema init + encryption backfill
 config/crypto.js          # AES-256-GCM helpers (enc:v1: values, decryptFields)
 config/sso.js             # Central auth service helpers
 middleware/auth.js        # JWT verification; authenticateAdmin (ADMIN_CENTRAL_USER_IDS)
-middleware/rateLimit.js   # Per-IP limiter on sign-in: 10 logins/15 min, then 429
+middleware/rateLimit.js   # Per-IP limiter on sign-in: 10 logins or registrations, and 10 Waypoint code exchanges, per 15 min, then 429
 services/aiService.js     # AI comparison + obfuscation generation
 services/summaries.js     # Fixed comparison summaries members read (never AI-written)
 routes/auth.js            # SSO callback, register, login (all refuse guests), profile

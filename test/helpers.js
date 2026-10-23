@@ -73,7 +73,7 @@ async function startWaypoint() {
   let nextId = 1000;
   let nextCode = 1;
   const codes = new Map(); // code -> account
-  const calls = { token: 0, login: 0 };
+  const calls = { token: 0, login: 0, register: 0 };
   const newAccount = (extra = {}) => {
     const id = nextId++;
     return { central_user_id: id, username: `user${id}`, email: `user${id}@example.test`, first_name: `User${id}`, last_name: '', is_guest: false, ...extra };
@@ -88,8 +88,10 @@ async function startWaypoint() {
       codes.delete(body.code);
       return send(200, account);
     }
-    if (req.method === 'POST' && req.url === '/api/auth/proxy/register' && body.email === GUEST_EMAIL) {
-      return send(201, guestAccount());
+    if (req.method === 'POST' && req.url === '/api/auth/proxy/register') {
+      calls.register++;
+      if (body.email === GUEST_EMAIL) return send(201, guestAccount());
+      return send(400, { error: 'Registration failed' });
     }
     if (req.method === 'POST' && req.url === '/api/auth/proxy/login') {
       calls.login++;

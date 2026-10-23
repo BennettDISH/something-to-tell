@@ -33,3 +33,33 @@ it('ten password tries per address per 15 minutes, then 429 without asking Waypo
   assert.ok(ok.body.token);
   assert.equal(ok.body.user.username, 'mira');
 });
+
+it('registering counts toward the same limit as logging in', async () => {
+  const form = { username: 'x', email: 'x@example.com', password: 'pw' };
+  const seen = app.waypoint.calls.register;
+  for (let i = 0; i < 10; i++) assert.equal((await post('/api/auth/register', '203.0.113.40', form)).status, 400);
+  assert.equal(app.waypoint.calls.register - seen, 10);
+
+  const blocked = await post('/api/auth/register', '203.0.113.40', form);
+  assert.equal(blocked.status, 429);
+  assert.match(blocked.body.error, /Too many sign-in attempts/);
+  assert.equal(app.waypoint.calls.register - seen, 10, 'the refused try never reached Waypoint');
+  // Sign-in and register share one count.
+  assert.equal((await post('/api/auth/login', '203.0.113.40', { email: 'mira@example.com', password: 'right-password' })).status, 429);
+  // Another address is unaffected.
+  assert.equal((await post('/api/auth/register', '198.51.100.40', form)).status, 400);
+});
+
+it('the Waypoint return is limited too, with its own count', async () => {
+  const exchange = (ip) => post('/api/auth/sso-callback', ip, { code: 'made-up' });
+  const seen = app.waypoint.calls.token;
+  for (let i = 0; i < 10; i++) assert.equal((await exchange('203.0.113.20')).status, 400);
+  assert.equal(app.waypoint.calls.token - seen, 10);
+
+  const blocked = await exchange('203.0.113.20');
+  assert.equal(blocked.status, 429);
+  assert.equal(app.waypoint.calls.token - seen, 10, 'the refused try never reached Waypoint');
+  assert.equal((await exchange('198.51.100.20')).status, 400);
+  // Password sign-in from the same address still has its own room.
+  assert.equal((await post('/api/auth/login', '203.0.113.20', { email: 'mira@example.com', password: 'right-password' })).status, 200);
+});

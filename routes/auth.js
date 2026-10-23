@@ -7,10 +7,16 @@ import { rateLimit } from '../middleware/rateLimit.js';
 
 const router = Router();
 
-// Waypoint caps its proxy endpoints per calling address, and every visitor here reaches it
-// from this server's one address: 30 password tries per 15 minutes for the whole site.
-// Counting each visitor first keeps one of them from using those up for everyone else.
-const loginLimit = rateLimit({
+// Waypoint caps its proxy and token endpoints per calling address, and every visitor here reaches
+// it from this server's one address: 30 password tries or code exchanges per 15 minutes for the
+// whole site. Counting each visitor first keeps one of them from using those up for everyone
+// else. Login and register share one count; the code exchange has its own.
+const signInLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Too many sign-in attempts. Try again in a few minutes.',
+});
+const callbackLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
   message: 'Too many sign-in attempts. Try again in a few minutes.',
@@ -61,7 +67,7 @@ async function signIn(res, centralUser) {
   res.json({ token: issueToken(profile), user: profile });
 }
 
-router.post('/register', async (req, res) => {
+router.post('/register', signInLimit, async (req, res) => {
   try {
     await signIn(res, await centralRegister(req.body));
   } catch (err) {
@@ -69,7 +75,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-router.post('/login', loginLimit, async (req, res) => {
+router.post('/login', signInLimit, async (req, res) => {
   try {
     await signIn(res, await centralLogin(req.body));
   } catch (err) {
@@ -77,7 +83,7 @@ router.post('/login', loginLimit, async (req, res) => {
   }
 });
 
-router.post('/sso-callback', async (req, res) => {
+router.post('/sso-callback', callbackLimit, async (req, res) => {
   try {
     await signIn(res, await exchangeCode(req.body.code));
   } catch (err) {
