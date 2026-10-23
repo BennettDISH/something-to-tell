@@ -2,6 +2,7 @@
 // wire protocol, a stand-in Waypoint that hands out accounts, a stand-in OpenAI that the
 // SDK reaches through OPENAI_BASE_URL, and the real server.js run as a child process with
 // at-rest encryption on. The tests drive the same routes and `pg` Pool as production.
+import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
@@ -28,8 +29,30 @@ export function freePort() {
   });
 }
 
-export async function startPostgres() {
+// Building PGlite's data directory (initdb, in WASM) takes seconds of CPU, and the suite starts a
+// database 23 times, which on a busy machine is what pushed `npm test` past a time limit. So
+// the first database made after an install is dumped to node_modules/.cache, and every later one
+// loads that dump (under a second). A missing, unreadable or unwritable cache just means a
+// fresh database, as before.
+const PGLITE_VERSION = JSON.parse(fs.readFileSync(path.join(root, 'node_modules', '@electric-sql', 'pglite', 'package.json'), 'utf8')).version;
+const SNAPSHOT = path.join(root, 'node_modules', '.cache', `pglite-${PGLITE_VERSION}.tar`);
+
+async function createPglite() {
+  try {
+    return await PGlite.create({ loadDataDir: new Blob([await fs.promises.readFile(SNAPSHOT)]) });
+  } catch { /* no snapshot yet, or one that will not load: make a fresh database */ }
   const pglite = await PGlite.create();
+  try {
+    const tmp = `${SNAPSHOT}.${process.pid}`;
+    await fs.promises.mkdir(path.dirname(SNAPSHOT), { recursive: true });
+    await fs.promises.writeFile(tmp, Buffer.from(await (await pglite.dumpDataDir('none')).arrayBuffer()));
+    await fs.promises.rename(tmp, SNAPSHOT); // whole file or nothing, for a run that starts meanwhile
+  } catch { /* the cache is only a speed-up */ }
+  return pglite;
+}
+
+export async function startPostgres() {
+  const pglite = await createPglite();
   const server = new PGLiteSocketServer({ db: pglite, port: 0, host: '127.0.0.1', maxConnections: 20 });
   await server.start();
   return {
