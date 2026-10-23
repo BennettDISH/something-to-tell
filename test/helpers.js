@@ -1,5 +1,5 @@
 // Test kit: an in-memory Postgres (PGlite, the real engine compiled to WASM) served on the
-// wire protocol, a stand-in Waypoint that mints guest accounts, a stand-in OpenAI that the
+// wire protocol, a stand-in Waypoint that hands out accounts, a stand-in OpenAI that the
 // SDK reaches through OPENAI_BASE_URL, and the real server.js run as a child process with
 // at-rest encryption on. The tests drive the same routes and `pg` Pool as production.
 import http from 'node:http';
@@ -61,28 +61,56 @@ function jsonServer(handler) {
   })));
 }
 
-// POST /api/auth/proxy/guest mints a new central account per call (ids from 1000 up).
-// POST /api/auth/proxy/login accepts one account, mira@example.com / right-password. `calls`
-// counts what reaches each route, so tests can see what the app's own limits kept out.
+// POST /oauth/token exchanges a code that issueCode() handed out for an account made by
+// newAccount() (a new central account per call, ids from 1000 up); it stands in for a user
+// approving the app on Waypoint. POST /api/auth/proxy/login accepts one account,
+// mira@example.com / right-password. GUEST_EMAIL comes back from login and register as a
+// Waypoint guest, to prove the app refuses a guest on every route. `calls` counts what reaches
+// each route, so tests can see what the app's own limits kept out.
+const GUEST_EMAIL = 'guest@example.test';
+
 async function startWaypoint() {
   let nextId = 1000;
-  const calls = { guest: 0, login: 0 };
+  let nextCode = 1;
+  const codes = new Map(); // code -> account
+  const calls = { token: 0, login: 0 };
+  const newAccount = (extra = {}) => {
+    const id = nextId++;
+    return { central_user_id: id, username: `user${id}`, email: `user${id}@example.test`, first_name: `User${id}`, last_name: '', is_guest: false, ...extra };
+  };
+  const guestAccount = () => newAccount({ username: `guest-swift-otter-${nextId}`, email: null, first_name: '', is_guest: true });
   const server = await jsonServer((req, body, send) => {
-    if (req.method === 'POST' && req.url === '/api/auth/proxy/guest') {
-      calls.guest++;
+    if (req.method === 'POST' && req.url === '/oauth/token') {
+      calls.token++;
       if (body.client_id !== CLIENT_ID || body.client_secret !== CLIENT_SECRET) return send(401, { error: 'bad client' });
-      const id = nextId++;
-      return send(200, { central_user_id: id, username: `guest${id}`, email: null, first_name: `Guest${id}`, last_name: '', is_guest: true });
+      const account = body.grant_type === 'authorization_code' && codes.get(body.code);
+      if (!account) return send(400, { error: 'invalid_grant' });
+      codes.delete(body.code);
+      return send(200, account);
+    }
+    if (req.method === 'POST' && req.url === '/api/auth/proxy/register' && body.email === GUEST_EMAIL) {
+      return send(201, guestAccount());
     }
     if (req.method === 'POST' && req.url === '/api/auth/proxy/login') {
       calls.login++;
       if (body.client_id !== CLIENT_ID || body.client_secret !== CLIENT_SECRET) return send(401, { error: 'bad client' });
+      if (body.email === GUEST_EMAIL) return send(200, guestAccount());
       if (body.email !== 'mira@example.com' || body.password !== 'right-password') return send(401, { error: 'Invalid credentials' });
       return send(200, { central_user_id: 500, username: 'mira', email: 'mira@example.com', first_name: 'Mira', last_name: '', is_guest: false });
     }
     send(404, { error: 'not found' });
   });
-  return { ...server, calls };
+  return {
+    ...server,
+    calls,
+    newAccount,
+    guestAccount,
+    issueCode(account) {
+      const code = `code-${nextCode++}`;
+      codes.set(code, account);
+      return code;
+    },
+  };
 }
 
 // The text inside one of the prompt's fenced <secret_a>/<secret_b> blocks.
@@ -144,9 +172,9 @@ async function startOpenAI() {
 export async function startApp({ adminCentralUserIds = '', db: sharedDb, env = {} } = {}) {
   const db = sharedDb || await startPostgres();
   const waypoint = await startWaypoint();
-  // Sign-in is limited per address (15 guests an hour), so each guest() comes from its own
-  // address, the way real visitors do behind Railway's proxy (trust proxy 1 reads the last
-  // X-Forwarded-For entry). Later requests carry no such header and come from 127.0.0.1.
+  // Sign-in is limited per address, so each user() comes from its own address, the way real
+  // visitors do behind Railway's proxy (trust proxy 1 reads the last X-Forwarded-For entry).
+  // Later requests carry no such header and come from 127.0.0.1.
   let nextVisitor = 0;
   const newVisitorAddress = () => `10.9.${nextVisitor >> 8}.${nextVisitor++ & 255}`;
   const openai = await startOpenAI();
@@ -201,12 +229,15 @@ export async function startApp({ adminCentralUserIds = '', db: sharedDb, env = {
     db,
     openai,
     waypoint,
+    GUEST_EMAIL,
     request,
     log: () => log,
-    /** Sign in through the real guest flow; `as` is a request function bound to the token. */
-    async guest() {
-      const res = await request('POST', '/api/auth/guest', { headers: { 'X-Forwarded-For': newVisitorAddress() } });
-      if (res.status !== 200) throw new Error(`guest sign-in failed: ${res.status} ${JSON.stringify(res.body)}`);
+    /** Sign a new Waypoint account in through the real SSO callback; `as` is a request function
+     *  bound to the token. */
+    async user() {
+      const code = waypoint.issueCode(waypoint.newAccount());
+      const res = await request('POST', '/api/auth/sso-callback', { body: { code }, headers: { 'X-Forwarded-For': newVisitorAddress() } });
+      if (res.status !== 200) throw new Error(`sign-in failed: ${res.status} ${JSON.stringify(res.body)}`);
       const { token, user } = res.body;
       return { token, user, as: (method, url, body) => request(method, url, { token, body }) };
     },

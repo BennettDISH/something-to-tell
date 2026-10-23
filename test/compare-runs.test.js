@@ -8,12 +8,12 @@ before(async () => { app = await startApp(); });
 after(async () => { await app?.stop(); });
 
 it('a second run in the same room while one is going gets a 409, not a repeat of every AI call', async () => {
-  const admin = await app.guest();
+  const admin = await app.user();
   const group = (await admin.as('POST', '/api/groups', { name: 'Room' })).body.group;
   await admin.as('PUT', '/api/ai/config', { provider: 'openai', api_key: 'sk-room-admin' });
   // Three members with unrelated secrets: three AI calls, half a second apart.
   for (const text of ['I hate cilantro', 'I cried at a car advert', 'I never learned to swim']) {
-    const m = await app.guest();
+    const m = await app.user();
     await m.as('POST', '/api/groups/join', { code: group.join_code });
     const id = (await m.as('POST', `/api/secrets/group/${group.id}`, { content: text })).body.secret.id;
     await m.as('PATCH', `/api/secrets/${id}/submit`);

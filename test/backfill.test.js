@@ -10,7 +10,7 @@ it('encrypts plaintext rows left from before the key was set, and keeps them rea
   const db = await startPostgres();
   try {
     let app = await startApp({ db });
-    const g = await app.guest();
+    const g = await app.user();
     const group = (await g.as('POST', '/api/groups', { name: 'Old room' })).body.group;
     await app.stop();
 

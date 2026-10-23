@@ -11,13 +11,13 @@ after(async () => { await app?.stop(); });
 // A room whose admin has an AI key and the given number of decoys. Each text becomes one
 // new member's submitted secret. The admin submits nothing.
 async function room(deniability, texts) {
-  const admin = await app.guest();
+  const admin = await app.user();
   const group = (await admin.as('POST', '/api/groups', { name: 'Room' })).body.group;
   await admin.as('PUT', `/api/groups/${group.id}`, { room_config: { deniability } });
   await admin.as('PUT', '/api/ai/config', { provider: 'openai', api_key: 'sk-room-admin' });
   const members = [];
   for (const text of texts) {
-    const m = await app.guest();
+    const m = await app.user();
     assert.equal((await m.as('POST', '/api/groups/join', { code: group.join_code })).status, 201);
     const id = (await m.as('POST', `/api/secrets/group/${group.id}`, { content: text })).body.secret.id;
     assert.equal((await m.as('PATCH', `/api/secrets/${id}/submit`)).status, 200);

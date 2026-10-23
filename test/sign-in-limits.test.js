@@ -33,27 +33,3 @@ it('ten password tries per address per 15 minutes, then 429 without asking Waypo
   assert.ok(ok.body.token);
   assert.equal(ok.body.user.username, 'mira');
 });
-
-it('fifteen new guests per address per hour, then 429', async () => {
-  const seen = app.waypoint.calls.guest;
-  for (let i = 0; i < 15; i++) {
-    const res = await post('/api/auth/guest', '203.0.113.9');
-    assert.equal(res.status, 200);
-    assert.ok(res.body.token);
-  }
-  const blocked = await post('/api/auth/guest', '203.0.113.9');
-  assert.equal(blocked.status, 429);
-  assert.match(blocked.body.error, /Too many guest accounts/);
-  assert.equal(app.waypoint.calls.guest - seen, 15, 'the refused guest never reached Waypoint');
-
-  // Someone else on another address is unaffected, and so is the normal guest flow.
-  assert.equal((await post('/api/auth/guest', '198.51.100.8')).status, 200);
-  const who = await app.guest();
-  assert.equal((await who.as('GET', '/api/auth/profile')).status, 200);
-});
-
-it('the two limits count separately', async () => {
-  for (let i = 0; i < 10; i++) await post('/api/auth/login', '203.0.113.30', { email: 'x', password: 'y' });
-  assert.equal((await post('/api/auth/login', '203.0.113.30', {})).status, 429);
-  assert.equal((await post('/api/auth/guest', '203.0.113.30')).status, 200);
-});

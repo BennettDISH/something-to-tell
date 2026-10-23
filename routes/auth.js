@@ -1,27 +1,26 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import pool from '../config/db.js';
-import { centralRegister, centralLogin, centralGuest, exchangeCode } from '../config/sso.js';
+import { centralRegister, centralLogin, exchangeCode } from '../config/sso.js';
 import { authenticate } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 
 const router = Router();
 
 // Waypoint caps its proxy endpoints per calling address, and every visitor here reaches it
-// from this server's one address: 30 password tries per 15 minutes and 500 new guests an
-// hour for the whole site. Counting each visitor first keeps one of them from using those
-// up for everyone else.
+// from this server's one address: 30 password tries per 15 minutes for the whole site.
+// Counting each visitor first keeps one of them from using those up for everyone else.
 const loginLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
   message: 'Too many sign-in attempts. Try again in a few minutes.',
 });
-// Waypoint's own guest button allows 15 an hour per address; the same here.
-const guestLimit = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 15,
-  message: 'Too many guest accounts from this address. Try again later.',
-});
+
+// Guests are refused: this app matches secrets between people, reveals them later and keeps the
+// user's own AI key, and a guest who loses the browser can never come back to a match. Waypoint's
+// sign-in page offers "Continue as guest" whatever an app wants, so the refusal is here, before a
+// profile or a token is made.
+const GUEST_REFUSED = 'Guest accounts can’t be used here. Sign in with your own account.';
 
 async function findOrCreateProfile(centralUser) {
   const userId = centralUser.central_user_id;
@@ -55,11 +54,16 @@ function issueToken(profile) {
   );
 }
 
+// The three ways in all end here: sign in, or answer 403 for a guest before anything is stored.
+async function signIn(res, centralUser) {
+  if (centralUser.is_guest) return res.status(403).json({ error: GUEST_REFUSED });
+  const profile = await findOrCreateProfile(centralUser);
+  res.json({ token: issueToken(profile), user: profile });
+}
+
 router.post('/register', async (req, res) => {
   try {
-    const data = await centralRegister(req.body);
-    const profile = await findOrCreateProfile(data);
-    res.json({ token: issueToken(profile), user: profile });
+    await signIn(res, await centralRegister(req.body));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -67,9 +71,7 @@ router.post('/register', async (req, res) => {
 
 router.post('/login', loginLimit, async (req, res) => {
   try {
-    const data = await centralLogin(req.body);
-    const profile = await findOrCreateProfile(data);
-    res.json({ token: issueToken(profile), user: profile });
+    await signIn(res, await centralLogin(req.body));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -77,19 +79,7 @@ router.post('/login', loginLimit, async (req, res) => {
 
 router.post('/sso-callback', async (req, res) => {
   try {
-    const data = await exchangeCode(req.body.code);
-    const profile = await findOrCreateProfile(data);
-    res.json({ token: issueToken(profile), user: profile });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// One-click guest: mint a central guest account and sign in as it — no redirect, no form.
-router.post('/guest', guestLimit, async (req, res) => {
-  try {
-    const profile = await findOrCreateProfile(await centralGuest());
-    res.json({ token: issueToken(profile), user: profile });
+    await signIn(res, await exchangeCode(req.body.code));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

@@ -35,6 +35,10 @@ encryption on, plus stand-ins for the auth service and OpenAI, so no database, k
   `VITE_SSO_CLIENT_ID` (baked into the client build)
 - `ADMIN_CENTRAL_USER_IDS` (comma-separated central user ids who can open the site admin page)
 
+Guests are not allowed: Waypoint's sign-in page offers "Continue as guest", and the app answers
+that with a 403 ("Guest accounts can’t be used here. Sign in with your own account.") before any
+profile or token is made.
+
 ## Layout
 - `src/pages/` — Dashboard, CreateGroup, GroupView, Settings, Admin, Login, Register, AuthCallback.
 - `routes/` — `secrets.js`, `groups.js`, `ai.js`, `auth.js`, `admin.js`, `health.js` (the `/health` handler).

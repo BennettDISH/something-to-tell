@@ -6,7 +6,7 @@ Mutual secret exchange platform. Users join groups, submit secrets, and AI deter
 - **Frontend**: React 19 + Vite + SCSS
 - **Backend**: Express.js serving `/dist` in production
 - **Database**: PostgreSQL (profiles, ai_configs, groups, group_members, secrets, vault_matches, comparisons); schema created in `initDb()` on boot
-- **Auth**: SSO via central auth service + local JWT; email/password and one-click guest go through the auth service too. Site admin (the Admin page, `/api/admin`) is `ADMIN_CENTRAL_USER_IDS`.
+- **Auth**: SSO via central auth service + local JWT; email/password also goes through the auth service. Guests: no, because private secrets and AI keys (a guest who loses the browser can never see a match or come back): `routes/auth.js` answers 403 "Guest accounts can’t be used here. Sign in with your own account." for a Waypoint `is_guest` account at the SSO callback (and register/login) before a profile or token is made, `src/pages/AuthCallback.jsx` sends the reason to the sign-in page, and there is no guest route or button. There is no guest sweep; guest accounts that signed in before 2026-10-23 are still in the database. Site admin (the Admin page, `/api/admin`) is `ADMIN_CENTRAL_USER_IDS`.
 - **Live**: https://something-to-tell-production.up.railway.app
 - **AI**: User-provided API keys (Anthropic Claude / OpenAI GPT) for secret comparison and obfuscation generation
 
@@ -19,11 +19,11 @@ Mutual secret exchange platform. Users join groups, submit secrets, and AI deter
 - `npm test` — `test/api.test.js` (auth, groups, secrets and AI keys encrypted at rest, a full comparison
   that opens a vault), `test/privacy.test.js` (what runs, vaults and leavers expose to other members),
   `test/health.test.js` (the health route, with a failing database), `test/a11y.test.js` (page language, zoomable viewport, one `<main>`),
-  `test/limits.test.js` (secret size and submit caps), `test/sign-in-limits.test.js` (per-IP login and
-  guest limits; Waypoint caps its proxy routes per calling address, this server's), `test/backfill.test.js` (plaintext rows encrypted
+  `test/limits.test.js` (secret size and submit caps), `test/sign-in-limits.test.js` (per-IP login
+  limits; Waypoint caps its proxy routes per calling address, this server's), `test/sso.test.js` (guests
+  refused), `test/backfill.test.js` (plaintext rows encrypted
   at the next boot) and `test/encryption-key.test.js` (a missing or wrong key). `test/helpers.js`
-  spawns the real `server.js` against PGlite on the Postgres wire protocol, with stand-in Waypoint (guest
-  sign-in) and OpenAI (via `OPENAI_BASE_URL`). PGlite runs one transaction at a time.
+  spawns the real `server.js` against PGlite on the Postgres wire protocol, with stand-in Waypoint (code exchange; it can also send a guest, to prove the app refuses one) and OpenAI (via `OPENAI_BASE_URL`). PGlite runs one transaction at a time.
 
 Plans and known issues go in `docs/ROADMAP.md`.
 
@@ -34,10 +34,10 @@ config/db.js              # PostgreSQL pool + schema init + encryption backfill
 config/crypto.js          # AES-256-GCM helpers (enc:v1: values, decryptFields)
 config/sso.js             # Central auth service helpers
 middleware/auth.js        # JWT verification; authenticateAdmin (ADMIN_CENTRAL_USER_IDS)
-middleware/rateLimit.js   # Per-IP limiter on sign-in: 10 logins/15 min, 15 guests/hour, then 429
+middleware/rateLimit.js   # Per-IP limiter on sign-in: 10 logins/15 min, then 429
 services/aiService.js     # AI comparison + obfuscation generation
 services/summaries.js     # Fixed comparison summaries members read (never AI-written)
-routes/auth.js            # SSO callback, register, login, guest, profile
+routes/auth.js            # SSO callback, register, login (all refuse guests), profile
 routes/groups.js          # Group CRUD + join/leave
 routes/health.js          # GET /health: SELECT 1 with a 3 s limit; 200, or 503 without database text; no-store
 routes/secrets.js         # Secret submission, admin-run comparison, admin logs

@@ -48,18 +48,10 @@ export async function ssoCallback(code) {
     body: JSON.stringify({ code }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error);
-  saveToken(data.token);
-  return data.user;
-}
-
-export async function guestLogin() {
-  const res = await fetch(`${API}/guest`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error);
+  if (!res.ok) {
+    // A 403 is a refusal (a guest account) the sign-in page explains.
+    throw Object.assign(new Error(data.error), { refused: res.status === 403 });
+  }
   saveToken(data.token);
   return data.user;
 }

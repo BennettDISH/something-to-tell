@@ -27,7 +27,11 @@ export default function AuthCallback() {
 
     ssoLogin(code)
       .then(() => navigate('/'))
-      .catch((err) => setError(err.message));
+      // A refusal (a guest account) is explained on the sign-in page, not here.
+      .catch((err) => {
+        if (err.refused) navigate('/login', { replace: true, state: { refused: err.message } });
+        else setError(err.message);
+      });
   }, []);
 
   if (error) {

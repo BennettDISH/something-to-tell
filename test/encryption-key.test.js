@@ -10,7 +10,7 @@ it('in production with no ENCRYPTION_KEY, saving secrets, AI keys and comparison
   // Production turns on SSL for Postgres; the in-memory one speaks plain TCP.
   const app = await startApp({ db, env: { NODE_ENV: 'production', ENCRYPTION_KEY: '', DATABASE_URL: `${db.url}?sslmode=disable` } });
   try {
-    const g = await app.guest();
+    const g = await app.user();
     const group = (await g.as('POST', '/api/groups', { name: 'Room' })).body.group;
 
     assert.equal((await g.as('POST', `/api/secrets/group/${group.id}`, { content: 'my real secret' })).status, 503);
@@ -30,7 +30,7 @@ it('in production with no ENCRYPTION_KEY, saving secrets, AI keys and comparison
 it('outside production, no ENCRYPTION_KEY still stores plaintext (local development)', async () => {
   const app = await startApp({ env: { ENCRYPTION_KEY: '' } });
   try {
-    const g = await app.guest();
+    const g = await app.user();
     const group = (await g.as('POST', '/api/groups', { name: 'Room' })).body.group;
     assert.equal((await g.as('POST', `/api/secrets/group/${group.id}`, { content: 'dev secret' })).status, 201);
   } finally {
@@ -42,7 +42,7 @@ it('warns at boot when stored rows cannot be decrypted with the current key, and
   const db = await startPostgres();
   try {
     let app = await startApp({ db, env: { ENCRYPTION_KEY: 'first-key' } });
-    const g = await app.guest();
+    const g = await app.user();
     const group = (await g.as('POST', '/api/groups', { name: 'Room' })).body.group;
     assert.equal((await g.as('POST', `/api/secrets/group/${group.id}`, { content: 'the stored secret' })).status, 201);
     await g.as('PUT', '/api/ai/config', { provider: 'openai', api_key: 'sk-stored-key' });

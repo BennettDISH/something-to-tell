@@ -31,8 +31,8 @@ describe('auth', () => {
     assert.equal((await app.request('GET', '/api/groups', { token: forged })).status, 401);
   });
 
-  it('guest sign-in creates a profile that is not a site admin', async () => {
-    const g = await app.guest();
+  it('a sign-in creates a profile that is not a site admin', async () => {
+    const g = await app.user();
     const profile = await g.as('GET', '/api/auth/profile');
     assert.equal(profile.status, 200);
     assert.equal(profile.body.user.central_user_id, g.user.central_user_id);
@@ -43,9 +43,9 @@ describe('auth', () => {
 
 describe('groups', () => {
   it('the creator is the room admin; members can read but not change or delete it', async () => {
-    const admin = await app.guest();
-    const member = await app.guest();
-    const outsider = await app.guest();
+    const admin = await app.user();
+    const member = await app.user();
+    const outsider = await app.user();
     const group = await makeGroup(admin, [member]);
 
     const view = await member.as('GET', `/api/groups/${group.id}`);
@@ -67,7 +67,7 @@ describe('groups', () => {
   });
 
   it('new rooms get 16-character join codes, and old 8-character codes still work', async () => {
-    const admin = await app.guest();
+    const admin = await app.user();
     const group = await makeGroup(admin);
     assert.match(group.join_code, /^[0-9a-f]{16}$/);
 
@@ -75,17 +75,17 @@ describe('groups', () => {
       "INSERT INTO groups (name, join_code, created_by) VALUES ('Old room', '0a1b2c3d', $1) RETURNING id",
       [admin.user.central_user_id],
     );
-    const member = await app.guest();
+    const member = await app.user();
     const joined = await member.as('POST', '/api/groups/join', { code: '0a1b2c3d' });
     assert.equal(joined.status, 201);
     assert.equal(joined.body.group.id, old.id);
   });
 
   it('a client that keeps guessing join codes is shut out, whatever account it uses, without locking out others', async () => {
-    const group = await makeGroup(await app.guest());
+    const group = await makeGroup(await app.user());
     // The app trusts one proxy hop, as on Railway, so each forwarded address is its own client.
     const join = async (ip, code) => {
-      const g = await app.guest();
+      const g = await app.user();
       return app.request('POST', '/api/groups/join', { token: g.token, body: { code }, headers: { 'X-Forwarded-For': ip } });
     };
 
@@ -99,9 +99,9 @@ describe('groups', () => {
 
 describe('secrets', () => {
   it('are stored encrypted, read back decrypted, and only by their owner', async () => {
-    const admin = await app.guest();
-    const member = await app.guest();
-    const outsider = await app.guest();
+    const admin = await app.user();
+    const member = await app.user();
+    const outsider = await app.user();
     const group = await makeGroup(admin, [member]);
     const text = 'I have never seen the ocean';
 
@@ -127,8 +127,8 @@ describe('secrets', () => {
   });
 
   it('submit, unsubmit and delete only work on your own secret', async () => {
-    const admin = await app.guest();
-    const member = await app.guest();
+    const admin = await app.user();
+    const member = await app.user();
     const group = await makeGroup(admin, [member]);
     const id = (await member.as('POST', `/api/secrets/group/${group.id}`, { content: 'a small secret' })).body.secret.id;
 
@@ -148,7 +148,7 @@ describe('secrets', () => {
 
 describe('AI config', () => {
   it('stores the API key encrypted and never sends it back', async () => {
-    const g = await app.guest();
+    const g = await app.user();
     assert.equal((await g.as('PUT', '/api/ai/config', { provider: 'openai' })).status, 400);
     assert.equal((await g.as('PUT', '/api/ai/config', { provider: 'openai', api_key: 'sk-test-123', model: 'gpt-test' })).status, 200);
 
@@ -164,8 +164,8 @@ describe('AI config', () => {
 
 describe('comparison and opened vaults', () => {
   it('only the room admin can run it, and it needs an AI key and two submitted secrets', async () => {
-    const admin = await app.guest();
-    const member = await app.guest();
+    const admin = await app.user();
+    const member = await app.user();
     const group = await makeGroup(admin, [member]);
     const url = `/api/secrets/group/${group.id}/compare`;
 
@@ -178,10 +178,10 @@ describe('comparison and opened vaults', () => {
   });
 
   it('a match opens a vault for its two members, encrypted at rest and padded with decoys', async () => {
-    const admin = await app.guest();
-    const ann = await app.guest();
-    const bob = await app.guest();
-    const cat = await app.guest();
+    const admin = await app.user();
+    const ann = await app.user();
+    const bob = await app.user();
+    const cat = await app.user();
     const group = await makeGroup(admin, [ann, bob, cat], {});
     await admin.as('PUT', `/api/groups/${group.id}`, { room_config: { deniability: 2 } });
     await admin.as('PUT', '/api/ai/config', { provider: 'openai', api_key: 'sk-room-admin', model: 'gpt-test' });

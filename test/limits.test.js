@@ -9,8 +9,8 @@ before(async () => { app = await startApp(); });
 after(async () => { await app?.stop(); });
 
 async function memberOfNewRoom() {
-  const admin = await app.guest();
-  const member = await app.guest();
+  const admin = await app.user();
+  const member = await app.user();
   const group = (await admin.as('POST', '/api/groups', { name: 'Room' })).body.group;
   await member.as('POST', '/api/groups/join', { code: group.join_code });
   return { member, add: (content) => member.as('POST', `/api/secrets/group/${group.id}`, { content }) };
