@@ -17,7 +17,7 @@ Admin: /admin, Waypoint id 1 only (ADMIN_CENTRAL_USER_IDS=1). Files: `middleware
 - `npm start` — Start Express server
 - `npm run server` — Dev server with --watch
 
-- `npm test` — `test/api.test.js` (auth, groups, secrets and AI keys encrypted at rest, a full comparison
+- `npm test` — runs one file at a time (`--test-concurrency=1`, 180 s per test): every file starts its own PGlite and server, and side by side on a busy machine a file timed out. `test/api.test.js` (auth, groups, secrets and AI keys encrypted at rest, a full comparison
   that opens a vault), `test/privacy.test.js` (what runs, vaults and leavers expose to other members),
   `test/admin.test.js` (the /admin gate, no AI key in any admin answer), `test/return-path.test.js` (sign-in comes back to the page asked for),
   `test/health.test.js` (the health route, with a failing database), `test/a11y.test.js` (page language, zoomable viewport, one `<main>`),

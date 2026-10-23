@@ -9,7 +9,7 @@
     "build": "vite build",
     "start": "node server.js",
     "server": "node --watch server.js",
-    "test": "node --test --test-timeout=60000 test/*.test.js"
+    "test": "node --test --test-concurrency=1 --test-timeout=180000 test/*.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
