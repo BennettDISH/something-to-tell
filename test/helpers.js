@@ -62,16 +62,27 @@ function jsonServer(handler) {
 }
 
 // POST /api/auth/proxy/guest mints a new central account per call (ids from 1000 up).
-function startWaypoint() {
+// POST /api/auth/proxy/login accepts one account, mira@example.com / right-password. `calls`
+// counts what reaches each route, so tests can see what the app's own limits kept out.
+async function startWaypoint() {
   let nextId = 1000;
-  return jsonServer((req, body, send) => {
+  const calls = { guest: 0, login: 0 };
+  const server = await jsonServer((req, body, send) => {
     if (req.method === 'POST' && req.url === '/api/auth/proxy/guest') {
+      calls.guest++;
       if (body.client_id !== CLIENT_ID || body.client_secret !== CLIENT_SECRET) return send(401, { error: 'bad client' });
       const id = nextId++;
       return send(200, { central_user_id: id, username: `guest${id}`, email: null, first_name: `Guest${id}`, last_name: '', is_guest: true });
     }
+    if (req.method === 'POST' && req.url === '/api/auth/proxy/login') {
+      calls.login++;
+      if (body.client_id !== CLIENT_ID || body.client_secret !== CLIENT_SECRET) return send(401, { error: 'bad client' });
+      if (body.email !== 'mira@example.com' || body.password !== 'right-password') return send(401, { error: 'Invalid credentials' });
+      return send(200, { central_user_id: 500, username: 'mira', email: 'mira@example.com', first_name: 'Mira', last_name: '', is_guest: false });
+    }
     send(404, { error: 'not found' });
   });
+  return { ...server, calls };
 }
 
 // The text inside one of the prompt's fenced <secret_a>/<secret_b> blocks.
@@ -133,6 +144,11 @@ async function startOpenAI() {
 export async function startApp({ adminCentralUserIds = '', db: sharedDb, env = {} } = {}) {
   const db = sharedDb || await startPostgres();
   const waypoint = await startWaypoint();
+  // Sign-in is limited per address (15 guests an hour), so each guest() comes from its own
+  // address, the way real visitors do behind Railway's proxy (trust proxy 1 reads the last
+  // X-Forwarded-For entry). Later requests carry no such header and come from 127.0.0.1.
+  let nextVisitor = 0;
+  const newVisitorAddress = () => `10.9.${nextVisitor >> 8}.${nextVisitor++ & 255}`;
   const openai = await startOpenAI();
   const port = await freePort();
   const child = spawn(process.execPath, ['server.js'], {
@@ -177,18 +193,19 @@ export async function startApp({ adminCentralUserIds = '', db: sharedDb, env = {
     const text = await res.text();
     let data = text;
     try { data = JSON.parse(text); } catch {}
-    return { status: res.status, body: data };
+    return { status: res.status, body: data, headers: res.headers };
   };
 
   return {
     base,
     db,
     openai,
+    waypoint,
     request,
     log: () => log,
     /** Sign in through the real guest flow; `as` is a request function bound to the token. */
     async guest() {
-      const res = await request('POST', '/api/auth/guest');
+      const res = await request('POST', '/api/auth/guest', { headers: { 'X-Forwarded-For': newVisitorAddress() } });
       if (res.status !== 200) throw new Error(`guest sign-in failed: ${res.status} ${JSON.stringify(res.body)}`);
       const { token, user } = res.body;
       return { token, user, as: (method, url, body) => request(method, url, { token, body }) };

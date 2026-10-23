@@ -18,7 +18,8 @@ Mutual secret exchange platform. Users join groups, submit secrets, and AI deter
 
 - `npm test` — `test/api.test.js` (auth, groups, secrets and AI keys encrypted at rest, a full comparison
   that opens a vault), `test/privacy.test.js` (what runs, vaults and leavers expose to other members),
-  `test/limits.test.js` (secret size and submit caps), `test/backfill.test.js` (plaintext rows encrypted
+  `test/limits.test.js` (secret size and submit caps), `test/sign-in-limits.test.js` (per-IP login and
+  guest limits; Waypoint caps its proxy routes per calling address, this server's), `test/backfill.test.js` (plaintext rows encrypted
   at the next boot) and `test/encryption-key.test.js` (a missing or wrong key). `test/helpers.js`
   spawns the real `server.js` against PGlite on the Postgres wire protocol, with stand-in Waypoint (guest
   sign-in) and OpenAI (via `OPENAI_BASE_URL`). PGlite runs one transaction at a time.
@@ -32,6 +33,7 @@ config/db.js              # PostgreSQL pool + schema init + encryption backfill
 config/crypto.js          # AES-256-GCM helpers (enc:v1: values, decryptFields)
 config/sso.js             # Central auth service helpers
 middleware/auth.js        # JWT verification; authenticateAdmin (ADMIN_CENTRAL_USER_IDS)
+middleware/rateLimit.js   # Per-IP limiter on sign-in: 10 logins/15 min, 15 guests/hour, then 429
 services/aiService.js     # AI comparison + obfuscation generation
 services/summaries.js     # Fixed comparison summaries members read (never AI-written)
 routes/auth.js            # SSO callback, register, login, guest, profile

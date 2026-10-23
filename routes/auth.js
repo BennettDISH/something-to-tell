@@ -3,8 +3,25 @@ import jwt from 'jsonwebtoken';
 import pool from '../config/db.js';
 import { centralRegister, centralLogin, centralGuest, exchangeCode } from '../config/sso.js';
 import { authenticate } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 
 const router = Router();
+
+// Waypoint caps its proxy endpoints per calling address, and every visitor here reaches it
+// from this server's one address: 30 password tries per 15 minutes and 500 new guests an
+// hour for the whole site. Counting each visitor first keeps one of them from using those
+// up for everyone else.
+const loginLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Too many sign-in attempts. Try again in a few minutes.',
+});
+// Waypoint's own guest button allows 15 an hour per address; the same here.
+const guestLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 15,
+  message: 'Too many guest accounts from this address. Try again later.',
+});
 
 async function findOrCreateProfile(centralUser) {
   const userId = centralUser.central_user_id;
@@ -48,7 +65,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimit, async (req, res) => {
   try {
     const data = await centralLogin(req.body);
     const profile = await findOrCreateProfile(data);
@@ -69,7 +86,7 @@ router.post('/sso-callback', async (req, res) => {
 });
 
 // One-click guest: mint a central guest account and sign in as it — no redirect, no form.
-router.post('/guest', async (req, res) => {
+router.post('/guest', guestLimit, async (req, res) => {
   try {
     const profile = await findOrCreateProfile(await centralGuest());
     res.json({ token: issueToken(profile), user: profile });
