@@ -1,9 +1,25 @@
 import { Router } from 'express';
 import pool from '../config/db.js';
 import { authenticateAdmin } from '../middleware/auth.js';
-import { decryptFields } from '../config/crypto.js';
+import { decryptFields, encryptionEnabled } from '../config/crypto.js';
+import { databaseAnswers } from './health.js';
 
+// The site admin page's data (/admin). Every route checks admin on the server. Users' AI keys
+// (ai_configs) are never read here and never come out.
 const router = Router();
+
+// Look-only status for the top of /admin: the deployed commit, whether the database answers, and
+// the env-var switch as on or off. Never a value, only whether it is set.
+router.get('/status', authenticateAdmin, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const commit = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7);
+  res.json({
+    app: 'something-to-tell',
+    commit: commit || null,
+    health: (await databaseAnswers()) ? 'ok' : 'database not answering',
+    switches: [{ name: 'Encryption at rest', on: encryptionEnabled }],
+  });
+});
 
 // All groups with member + secret counts
 router.get('/groups', authenticateAdmin, async (req, res) => {

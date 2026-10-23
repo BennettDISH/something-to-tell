@@ -54,7 +54,7 @@ export default function App() {
           <Route path="/groups/create" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
           <Route path="/groups/:id" element={<ProtectedRoute><GroupView /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-          <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute admin><Admin /></ProtectedRoute>} />
         </Routes>
       </main>
     </div>

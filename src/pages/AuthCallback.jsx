@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { takeSsoReturn } from '../services/authService';
 
 export default function AuthCallback() {
   const [error, setError] = useState('');
@@ -26,7 +27,7 @@ export default function AuthCallback() {
     sessionStorage.removeItem('sso_state');
 
     ssoLogin(code)
-      .then(() => navigate('/'))
+      .then(() => navigate(takeSsoReturn(), { replace: true }))
       // A refusal (a guest account) is explained on the sign-in page, not here.
       .catch((err) => {
         if (err.refused) navigate('/login', { replace: true, state: { refused: err.message } });

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import pool from '../config/db.js';
-import { authenticate, isAdmin } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 import { requireEncryption } from '../middleware/encryption.js';
 import { getUserAiConfig, compareSecrets, generateObfuscation, shuffleWithSecret, describeAiError } from '../services/aiService.js';
 import { comparisonSummary, safeSummary, FAILED_SUMMARY, QUOTA_SUMMARY } from '../services/summaries.js';
@@ -356,51 +356,6 @@ router.post('/group/:groupId/compare', authenticate, requireEncryption, oneRunPe
     res.status(500).json({ error: err.message });
   }
 }));
-
-// Admin: Get all comparison logs and secrets for the group (SITE ADMIN ONLY)
-router.get('/group/:groupId/admin/logs', authenticate, async (req, res) => {
-  try {
-    const { groupId } = req.params;
-
-    // Verify user is SITE admin
-    if (!isAdmin(req.user.central_user_id)) {
-      return res.status(403).json({ error: 'Only site admins can view deep intelligence logs' });
-    }
-
-    // Get all comparisons with full reasoning AND secret contents
-    const { rows: logs } = await pool.query(
-      `SELECT c.*,
-        sa.content as secret_a_content, sa.central_user_id as user_a_id,
-        sb.content as secret_b_content, sb.central_user_id as user_b_id,
-        pa.username as user_a_name, pb.username as user_b_name
-       FROM comparisons c
-       JOIN secrets sa ON c.secret_a_id = sa.id
-       JOIN secrets sb ON c.secret_b_id = sb.id
-       JOIN profiles pa ON sa.central_user_id = pa.central_user_id
-       JOIN profiles pb ON sb.central_user_id = pb.central_user_id
-       WHERE c.group_id = $1
-       ORDER BY c.created_at DESC`,
-      [groupId]
-    );
-
-    // Get all secrets currently in the group
-    const { rows: allSecrets } = await pool.query(
-      `SELECT s.*, p.username
-       FROM secrets s
-       JOIN profiles p ON s.central_user_id = p.central_user_id
-       WHERE s.group_id = $1
-       ORDER BY s.created_at DESC`,
-      [groupId]
-    );
-
-    res.json({
-      logs: logs.map((r) => decryptFields(r, ['ai_reasoning', 'user_summary', 'secret_a_content', 'secret_b_content'])),
-      allSecrets: allSecrets.map((r) => decryptFields(r, ['content'])),
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // Delete a secret (only your own, and only if not matched)
 router.delete('/:id', authenticate, async (req, res) => {

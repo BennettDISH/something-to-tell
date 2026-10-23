@@ -1,19 +1,37 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { adminGetGroups, adminGetGroup } from '../services/api';
+import { useSearchParams } from 'react-router-dom';
+import { adminGetGroups, adminGetGroup, adminGetStatus } from '../services/api';
+
+// Deployed commit, health check and the env-var switch (on or off, never a value).
+function Status() {
+  const [status, setStatus] = useState(null);
+  useEffect(() => {
+    adminGetStatus().then(setStatus).catch(() => setStatus(false));
+  }, []);
+  if (status === null) return null;
+  if (status === false) return <div className="alert alert--error">Could not load the status.</div>;
+  const cell = { display: 'flex', flexDirection: 'column', gap: 2 };
+  const label = { color: '#8888a0', fontSize: '0.75rem' };
+  return (
+    <div className="card" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem 1.5rem', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+      <div style={cell}><span style={label}>App</span>{status.app}</div>
+      <div style={cell}><span style={label}>Commit</span>{status.commit || 'unknown'}</div>
+      <div style={cell}><span style={label}>Health</span>{status.health}</div>
+      {status.switches.map((s) => (
+        <div key={s.name} style={cell}><span style={label}>{s.name}</span>{s.on ? 'on' : 'off'}</div>
+      ))}
+    </div>
+  );
+}
 
 export default function Admin() {
   const [groups, setGroups] = useState([]);
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [params] = useSearchParams();
 
-  useEffect(() => {
-    adminGetGroups().then((data) => setGroups(data.groups)).catch(() => {}).finally(() => setLoading(false));
-  }, []);
-
-  const selectGroup = async (id) => {
-    if (selected === id) { setSelected(null); setDetail(null); return; }
+  const openGroup = async (id) => {
     setSelected(id);
     setDetail(null);
     try {
@@ -24,11 +42,30 @@ export default function Admin() {
     }
   };
 
+  // /admin?group=ID (the link on a group's page) opens that group.
+  useEffect(() => {
+    adminGetGroups()
+      .then((data) => {
+        setGroups(data.groups);
+        const wanted = Number(params.get('group'));
+        if (data.groups.some((g) => g.id === wanted)) openGroup(wanted);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const selectGroup = async (id) => {
+    if (selected === id) { setSelected(null); setDetail(null); return; }
+    await openGroup(id);
+  };
+
   if (loading) return <div className="loading">Loading...</div>;
 
   return (
     <div className="page">
       <h1 className="page-title">Admin</h1>
+
+      <Status />
 
       <p style={{ color: '#8888a0', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
         {groups.length} group{groups.length !== 1 && 's'} total

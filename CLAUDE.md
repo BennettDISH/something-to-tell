@@ -6,9 +6,10 @@ Mutual secret exchange platform. Users join groups, submit secrets, and AI deter
 - **Frontend**: React 19 + Vite + SCSS
 - **Backend**: Express.js serving `/dist` in production
 - **Database**: PostgreSQL (profiles, ai_configs, groups, group_members, secrets, vault_matches, comparisons); schema created in `initDb()` on boot
-- **Auth**: SSO via central auth service + local JWT; email/password also goes through the auth service. Guests: no, because private secrets and AI keys (a guest who loses the browser can never see a match or come back): `routes/auth.js` answers 403 "Guest accounts can’t be used here. Sign in with your own account." for a Waypoint `is_guest` account at the SSO callback (and register/login) before a profile or token is made, `src/pages/AuthCallback.jsx` sends the reason to the sign-in page, and there is no guest route or button. There is no guest sweep; guest accounts that signed in before 2026-10-23 are still in the database. Site admin (the Admin page, `/api/admin`) is `ADMIN_CENTRAL_USER_IDS`.
-- **Live**: https://something-to-tell-production.up.railway.app
+- **Auth**: SSO via central auth service + local JWT; email/password also goes through the auth service. Guests: no, because private secrets and AI keys (a guest who loses the browser can never see a match or come back): `routes/auth.js` answers 403 "Guest accounts can’t be used here. Sign in with your own account." for a Waypoint `is_guest` account at the SSO callback (and register/login) before a profile or token is made, `src/pages/AuthCallback.jsx` sends the reason to the sign-in page, and there is no guest route or button. There is no guest sweep; guest accounts that signed in before 2026-10-23 are still in the database.- **Live**: https://something-to-tell-production.up.railway.app
 - **AI**: User-provided API keys (Anthropic Claude / OpenAI GPT) for secret comparison and obfuscation generation
+
+Admin: /admin, Waypoint id 1 only (ADMIN_CENTRAL_USER_IDS=1). Files: `middleware/auth.js` (`isAdmin`, `authenticateAdmin`), `routes/admin.js` (`/api/admin/status`, `/groups`, `/groups/:id`; every route checks admin), `src/pages/Admin.jsx` (the page: status line, then every group with its members, secrets, comparison log and vaults; `/admin?group=ID` opens one), `src/components/ProtectedRoute.jsx` (sign-in redirect that comes back to the page, and the plain 403 view "This page is for the site admin."), `src/App.jsx` (the `/admin` route and the admin-only nav link), `src/pages/GroupView.jsx` (an admin-only "Open in admin" link). The session is a Bearer token in localStorage, so the server cannot tell who asks for the page itself: the page is the same app shell for everyone and ships no data; the 403 view is client-side and `/api/admin/*` is 403 on its own. Users' saved AI keys (`ai_configs`) are never read by an admin route and never shown; `test/admin.test.js` pins that. The old "Deep Intel" panel on a group page (`/api/secrets/group/:id/admin/logs`) is gone: the same content is on /admin.
 
 ## Commands
 - `npm run dev` — Vite dev server
@@ -18,6 +19,7 @@ Mutual secret exchange platform. Users join groups, submit secrets, and AI deter
 
 - `npm test` — `test/api.test.js` (auth, groups, secrets and AI keys encrypted at rest, a full comparison
   that opens a vault), `test/privacy.test.js` (what runs, vaults and leavers expose to other members),
+  `test/admin.test.js` (the /admin gate, no AI key in any admin answer), `test/return-path.test.js` (sign-in comes back to the page asked for),
   `test/health.test.js` (the health route, with a failing database), `test/a11y.test.js` (page language, zoomable viewport, one `<main>`),
   `test/limits.test.js` (secret size and submit caps), `test/sign-in-limits.test.js` (per-IP login
   limits; Waypoint caps its proxy routes per calling address, this server's), `test/sso.test.js` (guests
@@ -42,7 +44,7 @@ routes/groups.js          # Group CRUD + join/leave
 routes/health.js          # GET /health: SELECT 1 with a 3 s limit; 200, or 503 without database text; no-store
 routes/secrets.js         # Secret submission, admin-run comparison, admin logs
 routes/ai.js              # User AI config management
-routes/admin.js           # Site admin: all groups
+routes/admin.js           # Site admin (/admin): status line, all groups with their secrets and logs
 src/                      # React frontend (App.jsx wraps the routed page in one `<main id="main">`; `test/a11y.test.js` checks it)
 ```
 
@@ -96,7 +98,7 @@ nothing consumes it.
 - `AUTH_SERVICE_URL` — Central auth service URL
 - `SSO_CLIENT_ID` / `SSO_CLIENT_SECRET` — OAuth client credentials
 - `VITE_AUTH_SERVICE_URL` / `VITE_SSO_CLIENT_ID` — Frontend SSO config (read in `src/services/authService.js`, baked in at build time)
-- `ADMIN_CENTRAL_USER_IDS` — comma-separated central user ids allowed on the site admin page
+- `ADMIN_CENTRAL_USER_IDS` — central user ids allowed on /admin, exactly `1` on the live service (unset means nobody)
 - `PORT`, `NODE_ENV`
 
 ## Deployment

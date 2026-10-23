@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { safePath } from '../services/authService';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -16,7 +17,8 @@ export default function Login() {
     setError('');
     try {
       await login(email, password);
-      navigate('/');
+      // Back to the page that sent the visitor here (e.g. /admin).
+      navigate(safePath(location.state?.from) || '/', { replace: true });
     } catch (err) {
       setError(err.message);
     }

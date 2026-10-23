@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getGroup, updateGroup, getGroupSecrets, addSecret, submitSecret, unsubmitSecret, triggerCompare, deleteSecret, getAdminLogs, deleteGroup, leaveGroup } from '../services/api';
+import { getGroup, updateGroup, getGroupSecrets, addSecret, submitSecret, unsubmitSecret, triggerCompare, deleteSecret, deleteGroup, leaveGroup } from '../services/api';
 
 const PURPOSES = [
   { value: 'fun', label: 'Fun & Games', icon: '\u{1F389}', description: 'Lighthearted, silly, embarrassing confessions — keep it playful' },
@@ -335,8 +335,6 @@ export default function GroupView() {
   const [otherMembers, setOtherMembers] = useState([]);
   const [submittedStats, setSubmittedStats] = useState(null);
   const [comparisons, setComparisons] = useState([]);
-  const [adminLogs, setAdminLogs] = useState(null);
-  const [showAdminLogs, setShowAdminLogs] = useState(false);
 
   const [newSecret, setNewSecret] = useState('');
   const [error, setError] = useState('');
@@ -382,18 +380,7 @@ export default function GroupView() {
     }
   };
 
-  const loadAdminLogs = async () => {
-    try {
-      const data = await getAdminLogs(id);
-      setAdminLogs(data);
-    } catch (err) { setError(err.message); }
-  };
-
   useEffect(() => { load(); }, [id]);
-
-  useEffect(() => {
-    if (showAdminLogs && isGroupAdmin) loadAdminLogs();
-  }, [showAdminLogs]);
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -448,7 +435,6 @@ export default function GroupView() {
       }
       setSuccess(msg);
       await load();
-      if (showAdminLogs) loadAdminLogs();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -516,13 +502,13 @@ export default function GroupView() {
                 </div>
 
                 {user.is_admin && (
-                  <button
+                  <Link
+                    to={`/admin?group=${id}`}
                     className="btn btn--secondary btn--full"
-                    style={{ padding: '6px', fontSize: '0.75rem', borderStyle: 'dashed', marginTop: '0.5rem' }}
-                    onClick={() => setShowAdminLogs(!showAdminLogs)}
+                    style={{ padding: '6px', fontSize: '0.75rem', borderStyle: 'dashed', marginTop: '0.5rem', textAlign: 'center' }}
                   >
-                    {showAdminLogs ? 'HIDE DEEP INTEL' : 'VIEW DEEP INTEL'}
-                  </button>
+                    OPEN IN ADMIN
+                  </Link>
                 )}
 
                 <div style={{ marginTop: '2rem', borderTop: '1px solid rgba(255, 68, 68, 0.2)', paddingTop: '1rem' }}>
@@ -561,43 +547,6 @@ export default function GroupView() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           {error && <div className="alert alert--error">{error}</div>}
           {success && <div className="alert alert--success">{success}</div>}
-
-          {/* ADMIN INTEL LOGS */}
-          {showAdminLogs && isGroupAdmin && user.is_admin && (
-            <section className="glass-card" style={{ borderColor: '#a29bfe', background: 'rgba(162, 155, 254, 0.05)' }}>
-              <div className="section-label">Deep Intelligence Logs (SITE ADMIN)</div>
-              {!adminLogs ? <div className="loading">Decrypting deep logs...</div> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div style={{ fontSize: '0.85rem', color: '#a29bfe', fontWeight: 'bold' }}>
-                    UNRESTRICTED ACCESS: Viewing all secret contents and AI reasoning.
-                  </div>
-                  {adminLogs.logs.map(log => (
-                    <div key={log.id} style={{ padding: '1rem', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: log.matched ? '1px solid #00b894' : '1px solid #2a2a40' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: log.matched ? '#00b894' : '#8888a0' }}>
-                          {log.user_a_name} + {log.user_b_name} &raquo; {Math.round(log.confidence * 100)}% CONFIDENCE
-                        </span>
-                        <span style={{ fontSize: '0.7rem', color: '#555570' }}>{new Date(log.created_at).toLocaleTimeString()}</span>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1rem' }}>
-                        <div>
-                          <div style={{ fontSize: '0.6rem', color: '#555570', marginBottom: '4px' }}>{log.user_a_name.toUpperCase()}'S SECRET</div>
-                          <div style={{ fontSize: '0.8rem', fontStyle: 'italic', color: '#e8e8f0' }}>"{log.secret_a_content}"</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '0.6rem', color: '#555570', marginBottom: '4px' }}>{log.user_b_name.toUpperCase()}'S SECRET</div>
-                          <div style={{ fontSize: '0.8rem', fontStyle: 'italic', color: '#e8e8f0' }}>"{log.secret_b_content}"</div>
-                        </div>
-                      </div>
-                      <div style={{ fontSize: '0.8rem', color: '#a29bfe', background: 'rgba(162, 155, 254, 0.08)', padding: '10px', borderRadius: '4px', borderLeft: '2px solid #a29bfe' }}>
-                        <strong>Full Reasoning:</strong> {log.ai_reasoning}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
 
           {/* OPENED VAULTS (REVEALED MATCHES) */}
           {matches.length > 0 && (

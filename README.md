@@ -8,6 +8,8 @@ boot either way. Boot also warns when the key cannot decrypt rows already stored
 
 Live: https://something-to-tell-production.up.railway.app
 
+Admin: `/admin` (every group, its secrets and comparison log; never anyone's AI key), Waypoint id 1 only (`ADMIN_CENTRAL_USER_IDS=1`).
+
 ## Stack
 React 19 + Vite · Express · Postgres · Anthropic + OpenAI SDKs (AI matching) · SSO via `auth-service`
 
@@ -33,7 +35,7 @@ encryption on, plus stand-ins for the auth service and OpenAI, so no database, k
 - `ENCRYPTION_KEY` (turns on encryption at rest; see Notes before changing it)
 - `AUTH_SERVICE_URL`, `SSO_CLIENT_ID`, `SSO_CLIENT_SECRET` (server); `VITE_AUTH_SERVICE_URL`,
   `VITE_SSO_CLIENT_ID` (baked into the client build)
-- `ADMIN_CENTRAL_USER_IDS` (comma-separated central user ids who can open the site admin page)
+- `ADMIN_CENTRAL_USER_IDS` (central user ids who can open `/admin`: exactly `1` on the live service; unset means nobody)
 
 Guests are not allowed: Waypoint's sign-in page offers "Continue as guest", and the app answers
 that with a 403 ("Guest accounts can’t be used here. Sign in with your own account.") before any
