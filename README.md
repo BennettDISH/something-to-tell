@@ -37,14 +37,19 @@ encryption on, plus stand-ins for the auth service and OpenAI, so no database, k
 
 ## Layout
 - `src/pages/` — Dashboard, CreateGroup, GroupView, Settings, Admin, Login, Register, AuthCallback.
-- `routes/` — `secrets.js`, `groups.js`, `ai.js`, `auth.js`, `admin.js`.
+- `routes/` — `secrets.js`, `groups.js`, `ai.js`, `auth.js`, `admin.js`, `health.js` (the `/health` handler).
 - `services/` — AI matching/obfuscation logic.
 - `config/crypto.js` — at-rest encryption helpers.
 - `docs/ROADMAP.md` — ideas and known issues.
 
 ## Deploy
-Railway, auto-deploys `main`. Build `npm install && npm run build`, start `node server.js`
-(`railway.toml`). Health check: `/health`.
+Railway, auto-deploys `main`. The build and deploy settings live on the Railway service itself
+(there is no `railway.toml`): Nixpacks builds with `npm install && npm run build`, starts
+`node server.js` and restarts on failure up to 10 times.
+
+`GET /health` is the healthcheck: it runs one `SELECT 1` (3 second limit) and answers
+`200 {"status":"ok","db":"ok"}`, or `503 {"status":"unavailable","db":"not answering"}` with no
+database text when the database errors or stays silent. It is never cached.
 
 ## Notes
 `ENCRYPTION_KEY` (any strong string) encrypts secrets/API keys/AI text at rest via `config/crypto.js`

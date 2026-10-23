@@ -45,16 +45,18 @@ export default function App() {
   return (
     <div className="app">
       <Nav />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/groups/create" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
-        <Route path="/groups/:id" element={<ProtectedRoute><GroupView /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-        <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
-      </Routes>
+      <main id="main" className="app__main">
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/groups/create" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
+          <Route path="/groups/:id" element={<ProtectedRoute><GroupView /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+        </Routes>
+      </main>
     </div>
   );
 }

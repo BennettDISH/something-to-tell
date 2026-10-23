@@ -11,6 +11,7 @@ import groupRoutes from './routes/groups.js';
 import secretRoutes from './routes/secrets.js';
 import aiRoutes from './routes/ai.js';
 import adminRoutes from './routes/admin.js';
+import { healthHandler } from './routes/health.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -30,8 +31,8 @@ app.use('/api/secrets', secretRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Health check
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+// Health check: a SELECT 1 with a short limit (503 while the database doesn't answer)
+app.get('/health', healthHandler());
 
 // Serve frontend in production
 app.use(express.static(path.join(__dirname, 'dist')));
@@ -41,7 +42,8 @@ app.get('*', (req, res) => {
 
 // Boot resiliently. Exiting on any initDb() failure turns one unreachable-DB moment into a
 // Railway crash loop that gives up after 10 restarts. Instead: retry a few times (the DB can
-// be waking up), then start anyway so /health answers and the real error is in the logs.
+// be waking up), then start anyway so /health answers (503 while the database doesn't) and the
+// real error is in the logs.
 // DB-backed routes fail until Postgres is reachable; the next boot re-runs initDb().
 async function start() {
   const MAX_ATTEMPTS = 5;

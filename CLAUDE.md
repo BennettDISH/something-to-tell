@@ -18,6 +18,7 @@ Mutual secret exchange platform. Users join groups, submit secrets, and AI deter
 
 - `npm test` — `test/api.test.js` (auth, groups, secrets and AI keys encrypted at rest, a full comparison
   that opens a vault), `test/privacy.test.js` (what runs, vaults and leavers expose to other members),
+  `test/health.test.js` (the health route, with a failing database), `test/a11y.test.js` (page language, zoomable viewport, one `<main>`),
   `test/limits.test.js` (secret size and submit caps), `test/sign-in-limits.test.js` (per-IP login and
   guest limits; Waypoint caps its proxy routes per calling address, this server's), `test/backfill.test.js` (plaintext rows encrypted
   at the next boot) and `test/encryption-key.test.js` (a missing or wrong key). `test/helpers.js`
@@ -38,10 +39,11 @@ services/aiService.js     # AI comparison + obfuscation generation
 services/summaries.js     # Fixed comparison summaries members read (never AI-written)
 routes/auth.js            # SSO callback, register, login, guest, profile
 routes/groups.js          # Group CRUD + join/leave
+routes/health.js          # GET /health: SELECT 1 with a 3 s limit; 200, or 503 without database text; no-store
 routes/secrets.js         # Secret submission, admin-run comparison, admin logs
 routes/ai.js              # User AI config management
 routes/admin.js           # Site admin: all groups
-src/                      # React frontend
+src/                      # React frontend (App.jsx wraps the routed page in one `<main id="main">`; `test/a11y.test.js` checks it)
 ```
 
 ## Key Flows
@@ -98,4 +100,4 @@ nothing consumes it.
 - `PORT`, `NODE_ENV`
 
 ## Deployment
-Railway auto-deploy on push to main. See `railway.toml`.
+Railway auto-deploys on push to main. Build and start commands, the restart policy and the healthcheck path are set on the Railway service itself; there is no `railway.toml`. `/health` (`routes/health.js`) is `SELECT 1` with a 3 second limit: 200 `{ status: 'ok', db: 'ok' }` or 503 `{ status: 'unavailable', db: 'not answering' }`, never any database text (`healthHandler({ query, timeoutMs })` takes a stand-in query for `test/health.test.js`).
