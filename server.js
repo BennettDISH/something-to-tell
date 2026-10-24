@@ -1,8 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDb } from './config/db.js';
@@ -12,6 +10,9 @@ import secretRoutes from './routes/secrets.js';
 import aiRoutes from './routes/ai.js';
 import adminRoutes from './routes/admin.js';
 import { healthHandler } from './routes/health.js';
+import { requestLog } from './middleware/requestLog.js';
+import { securityHeaders } from './middleware/securityHeaders.js';
+import { apiErrorHandler } from './middleware/errors.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -19,9 +20,11 @@ const PORT = process.env.PORT || 3000;
 
 app.set('trust proxy', 1); // behind Railway's proxy — correct client IPs for the join and sign-in limits
 
-app.use(helmet({ contentSecurityPolicy: false }));
+// One log line per request with an id: method, path, status, time. Never a query string (Waypoint's
+// ?code=&state= land on the callback), a body, a header or a cookie.
+app.use(requestLog());
+app.use(securityHeaders());
 app.use(cors());
-app.use(morgan('tiny'));
 app.use(express.json());
 
 // API routes
@@ -30,6 +33,10 @@ app.use('/api/groups', groupRoutes);
 app.use('/api/secrets', secretRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
+// A path under /api that no router answered is a JSON 404, not the app's index.html
+app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
+// What a route let through, mostly a body the JSON parser refused: answered in JSON, logged here
+app.use('/api', apiErrorHandler);
 
 // Health check: a SELECT 1 with a short limit (503 while the database doesn't answer)
 app.get('/health', healthHandler());

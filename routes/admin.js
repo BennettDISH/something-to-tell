@@ -3,6 +3,7 @@ import pool from '../config/db.js';
 import { authenticateAdmin } from '../middleware/auth.js';
 import { decryptFields, encryptionEnabled } from '../config/crypto.js';
 import { databaseAnswers } from './health.js';
+import { serverError } from '../middleware/errors.js';
 
 // The site admin page's data (/admin). Every route checks admin on the server. Users' AI keys
 // (ai_configs) are never read here and never come out.
@@ -36,7 +37,7 @@ router.get('/groups', authenticateAdmin, async (req, res) => {
     );
     res.json({ groups: rows });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 
@@ -103,7 +104,7 @@ router.get('/groups/:id', authenticateAdmin, async (req, res) => {
         decryptFields(r, ['secret_a_content', 'secret_b_content', 'ai_reasoning', 'user_summary'])),
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 

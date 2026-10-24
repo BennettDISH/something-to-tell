@@ -2,6 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import pool from '../config/db.js';
 import { authenticate } from '../middleware/auth.js';
+import { serverError } from '../middleware/errors.js';
 
 const router = Router();
 
@@ -49,7 +50,7 @@ router.get('/', authenticate, async (req, res) => {
     );
     res.json({ groups: rows });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 
@@ -73,7 +74,7 @@ router.get('/:id', authenticate, async (req, res) => {
     );
     res.json({ group: { ...group, members } });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 
@@ -92,7 +93,7 @@ router.post('/', authenticate, async (req, res) => {
     );
     res.status(201).json({ group });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 
@@ -121,7 +122,7 @@ router.post('/join', authenticate, async (req, res) => {
     );
     res.status(201).json({ group });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 
@@ -142,7 +143,7 @@ router.put('/:id', authenticate, async (req, res) => {
     );
     res.json({ group });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 
@@ -155,7 +156,7 @@ router.delete('/:id/leave', authenticate, async (req, res) => {
     );
     res.json({ message: 'Left group' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 
@@ -171,7 +172,7 @@ router.delete('/:id', authenticate, async (req, res) => {
     await pool.query('DELETE FROM groups WHERE id = $1', [req.params.id]);
     res.json({ message: 'Group deleted successfully' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 

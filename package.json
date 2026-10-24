@@ -4,6 +4,9 @@
   "description": "Mutual secret exchange platform with AI-powered matching and obfuscation",
   "main": "server.js",
   "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -18,7 +21,6 @@
     "express": "^4.21.2",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0",
     "openai": "^4.82.0",
     "pg": "^8.13.1",
     "react": "^19.0.0",

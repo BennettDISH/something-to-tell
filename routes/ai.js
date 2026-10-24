@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/auth.js';
 import { requireEncryption } from '../middleware/encryption.js';
 import { getUserAiConfig, testConnection } from '../services/aiService.js';
 import { encrypt } from '../config/crypto.js';
+import { serverError } from '../middleware/errors.js';
 
 const router = Router();
 
@@ -16,7 +17,7 @@ router.get('/config', authenticate, async (req, res) => {
     );
     res.json({ config: rows[0] || null });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 
@@ -48,7 +49,7 @@ router.put('/config', authenticate, requireEncryption, async (req, res) => {
 
     res.json({ message: 'AI config saved' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 
@@ -58,7 +59,7 @@ router.delete('/config', authenticate, async (req, res) => {
     await pool.query('DELETE FROM ai_configs WHERE central_user_id = $1', [req.user.central_user_id]);
     res.json({ message: 'AI config deleted' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 

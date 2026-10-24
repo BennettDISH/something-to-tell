@@ -5,6 +5,7 @@ import { requireEncryption } from '../middleware/encryption.js';
 import { getUserAiConfig, compareSecrets, generateObfuscation, shuffleWithSecret, describeAiError } from '../services/aiService.js';
 import { comparisonSummary, safeSummary, FAILED_SUMMARY, QUOTA_SUMMARY } from '../services/summaries.js';
 import { encrypt, encryptArray, decrypt, decryptFields, tryDecrypt } from '../config/crypto.js';
+import { serverError } from '../middleware/errors.js';
 
 const router = Router();
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -111,7 +112,7 @@ router.get('/group/:groupId', authenticate, async (req, res) => {
       comparisons: myComparisons.map((r) => ({ ...r, user_summary: safeSummary(decrypt(r.user_summary), r.matched) })),
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 
@@ -145,7 +146,7 @@ router.post('/group/:groupId', authenticate, requireEncryption, async (req, res)
 
     res.status(201).json({ secret: { ...newSecret, content } });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 
@@ -173,7 +174,7 @@ router.patch('/:id/submit', authenticate, async (req, res) => {
     );
     res.json({ secret: decryptFields(updated, ['content']) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 
@@ -193,7 +194,7 @@ router.patch('/:id/unsubmit', authenticate, async (req, res) => {
     );
     res.json({ secret: decryptFields(updated, ['content']) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 
@@ -353,7 +354,7 @@ router.post('/group/:groupId/compare', authenticate, requireEncryption, oneRunPe
       errors: errors > 0 ? errors : undefined
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 }));
 
@@ -370,7 +371,7 @@ router.delete('/:id', authenticate, async (req, res) => {
     await pool.query('DELETE FROM secrets WHERE id = $1', [req.params.id]);
     res.json({ message: 'Secret deleted' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(req, res, err);
   }
 });
 
