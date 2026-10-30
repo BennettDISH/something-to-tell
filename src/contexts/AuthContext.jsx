@@ -9,7 +9,11 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (getToken()) {
-      getProfile().then(setUser).catch(() => clearToken()).finally(() => setLoading(false));
+      // Only a 401 means the token is bad. A server or network hiccup keeps it for the next load.
+      getProfile()
+        .then(setUser)
+        .catch((err) => { if (err.status === 401) clearToken(); })
+        .finally(() => setLoading(false));
     } else {
       setLoading(false);
     }

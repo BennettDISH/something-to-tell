@@ -103,6 +103,11 @@ export async function initDb() {
       user_summary TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Every room page and comparison run reads these by room.
+    CREATE INDEX IF NOT EXISTS secrets_group_id_idx ON secrets(group_id);
+    CREATE INDEX IF NOT EXISTS comparisons_group_id_idx ON comparisons(group_id);
+    CREATE INDEX IF NOT EXISTS vault_matches_group_id_idx ON vault_matches(group_id);
   `);
 
   await warnIfStoredRowsUnreadable();

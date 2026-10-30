@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import pool from '../config/db.js';
+import { serverError } from './errors.js';
 
 const ADMIN_IDS = (process.env.ADMIN_CENTRAL_USER_IDS || '').split(',').map(Number).filter(Boolean);
 
@@ -13,18 +14,27 @@ export async function authenticate(req, res, next) {
     return res.status(401).json({ error: 'No token provided' });
   }
 
+  let decoded;
   try {
-    const decoded = jwt.verify(header.split(' ')[1], process.env.JWT_SECRET);
-    const { rows } = await pool.query(
-      'SELECT * FROM profiles WHERE central_user_id = $1',
-      [decoded.central_user_id]
-    );
-    if (!rows[0]) return res.status(401).json({ error: 'User not found' });
-    req.user = { ...rows[0], is_admin: isAdmin(rows[0].central_user_id) };
-    next();
+    decoded = jwt.verify(header.split(' ')[1], process.env.JWT_SECRET);
   } catch {
     return res.status(401).json({ error: 'Invalid token' });
   }
+
+  // Only a bad token is a 401, which signs the visitor out; a database that fails here is
+  // ours, a 500, and the token is kept.
+  let rows;
+  try {
+    ({ rows } = await pool.query(
+      'SELECT * FROM profiles WHERE central_user_id = $1',
+      [decoded.central_user_id]
+    ));
+  } catch (err) {
+    return serverError(req, res, err);
+  }
+  if (!rows[0]) return res.status(401).json({ error: 'User not found' });
+  req.user = { ...rows[0], is_admin: isAdmin(rows[0].central_user_id) };
+  next();
 }
 
 export async function authenticateAdmin(req, res, next) {

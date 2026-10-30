@@ -167,6 +167,52 @@ describe('opened vaults', () => {
       const view = (await r.view(who)).body;
       assert.deepEqual(view.matches, []);
       assert.deepEqual(view.secrets.map((s) => s.status), ['submitted']);
+      assert.ok(view.comparisons.length && view.comparisons.every((c) => !c.matched), 'no MATCH is logged without its vault');
     }
+    const { rows } = await app.db.query('SELECT matched FROM comparisons WHERE group_id = $1', [r.group.id]);
+    assert.deepEqual(rows.map((c) => c.matched), [false]);
+  });
+});
+
+describe('withdrawing while a run is going', () => {
+  // Ann and Bob's secrets match, and the AI holds its answer ("slow") until Ann has
+  // withdrawn hers.
+  async function withdrawMidRun(withdraw) {
+    const r = await room(0, ['slow: my alpha ferret bit the mailman', 'My alpha ferret stole a sock']);
+    const run = r.compare();
+    while (!app.openai.waiting()) await new Promise((resolve) => setTimeout(resolve, 20));
+    await withdraw(r, r.members[0]);
+    app.openai.release();
+    const res = await run;
+    assert.equal(res.status, 200);
+    assert.equal(res.body.matches.length, 0);
+    const { rows } = await app.db.query('SELECT COUNT(*)::int AS n FROM vault_matches WHERE group_id = $1', [r.group.id]);
+    assert.equal(rows[0].n, 0, 'no vault opened');
+    const bob = (await r.view(r.members[1])).body;
+    assert.deepEqual(bob.matches, []);
+    assert.deepEqual(bob.secrets.map((s) => s.status), ['submitted']);
+    assert.ok(!JSON.stringify(bob).includes('mailman'));
+    return r;
+  }
+
+  it('an unsubmitted secret is not revealed and stays sealed', async () => {
+    const r = await withdrawMidRun(async (r, ann) => {
+      const id = (await r.view(ann)).body.secrets[0].id;
+      assert.equal((await ann.as('PATCH', `/api/secrets/${id}/unsubmit`)).status, 200);
+    });
+    assert.deepEqual((await r.view(r.members[0])).body.secrets.map((s) => s.status), ['sealed']);
+  });
+
+  it('a deleted secret is not revealed, and the run still answers 200', async () => {
+    await withdrawMidRun(async (r, ann) => {
+      const id = (await r.view(ann)).body.secrets[0].id;
+      assert.equal((await ann.as('DELETE', `/api/secrets/${id}`)).status, 200);
+    });
+  });
+
+  it("a member who leaves doesn't have their secret revealed", async () => {
+    await withdrawMidRun(async (r, ann) => {
+      assert.equal((await ann.as('DELETE', `/api/groups/${r.group.id}/leave`)).status, 200);
+    });
   });
 });

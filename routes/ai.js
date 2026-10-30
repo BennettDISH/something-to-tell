@@ -72,7 +72,13 @@ router.post('/test', authenticate, async (req, res) => {
     const result = await testConnection(config);
     res.json(result);
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    // Our own sentence about the stored key, or the provider's status code when it turned the
+    // call down; never the provider's own text, which can quote part of the key.
+    if (err.expose) return res.status(400).json({ error: err.message });
+    if (err.status >= 400 && err.status < 500) {
+      return res.status(400).json({ error: `The AI provider turned the test down (${err.status}). Check the key and the model.` });
+    }
+    serverError(req, res, err);
   }
 });
 

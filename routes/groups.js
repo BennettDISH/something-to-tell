@@ -12,8 +12,9 @@ function generateJoinCode() {
   return crypto.randomBytes(8).toString('hex');
 }
 
-// A join code is all that keeps a stranger out of a room, and guest accounts are free, so
-// wrong codes are limited per client IP rather than per account. Once a client is over the
+// A join code is all that keeps a stranger out of a room, and Waypoint accounts cost nothing
+// to make (guests are refused here, but anyone can register), so wrong codes are limited per
+// client IP rather than per account. Once a client is over the
 // limit even a right code is refused, or the limit would still tell a guesser when it hit.
 // In-process only, like the one-run-per-room guard in secrets.js: fine while the app runs
 // as one instance.

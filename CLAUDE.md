@@ -6,7 +6,8 @@ Mutual secret exchange platform. Users join groups, submit secrets, and AI deter
 - **Frontend**: React 19 + Vite + SCSS
 - **Backend**: Express.js serving `/dist` in production
 - **Database**: PostgreSQL (profiles, ai_configs, groups, group_members, secrets, vault_matches, comparisons); schema created in `initDb()` on boot
-- **Auth**: SSO via central auth service + local JWT; email/password also goes through the auth service. Guests: no, because private secrets and AI keys (a guest who loses the browser can never see a match or come back): `routes/auth.js` answers 403 "Guest accounts can’t be used here. Sign in with your own account." for a Waypoint `is_guest` account at the SSO callback (and register/login) before a profile or token is made, `src/pages/AuthCallback.jsx` sends the reason to the sign-in page, and there is no guest route or button. There is no guest sweep; guest accounts that signed in before 2026-10-23 are still in the database.- **Live**: https://something-to-tell-production.up.railway.app
+- **Auth**: SSO via central auth service + local JWT; email/password also goes through the auth service. Guests: no, because private secrets and AI keys (a guest who loses the browser can never see a match or come back): `routes/auth.js` answers 403 "Guest accounts can’t be used here. Sign in with your own account." for a Waypoint `is_guest` account at the SSO callback (and register/login) before a profile or token is made, `src/pages/AuthCallback.jsx` sends the reason to the sign-in page, and there is no guest route or button. There is no guest sweep; guest accounts that signed in before 2026-10-23 are still in the database.
+- **Live**: https://something-to-tell-production.up.railway.app
 - **AI**: User-provided API keys (Anthropic Claude / OpenAI GPT) for secret comparison and obfuscation generation
 
 Admin: /admin, Waypoint id 1 only (ADMIN_CENTRAL_USER_IDS=1). Files: `middleware/auth.js` (`isAdmin`, `authenticateAdmin`), `routes/admin.js` (`/api/admin/status`, `/groups`, `/groups/:id`; every route checks admin), `src/pages/Admin.jsx` (the page: status line, then every group with its members, secrets, comparison log and vaults; `/admin?group=ID` opens one), `src/components/ProtectedRoute.jsx` (sign-in redirect that comes back to the page, and the plain 403 view "This page is for the site admin."), `src/App.jsx` (the `/admin` route and the admin-only nav link), `src/pages/GroupView.jsx` (an admin-only "Open in admin" link). The session is a Bearer token in localStorage, so the server cannot tell who asks for the page itself: the page is the same app shell for everyone and ships no data; the 403 view is client-side and `/api/admin/*` is 403 on its own. Users' saved AI keys (`ai_configs`) are never read by an admin route and never shown; `test/admin.test.js` pins that. The old "Deep Intel" panel on a group page (`/api/secrets/group/:id/admin/logs`) is gone: the same content is on /admin.
@@ -27,7 +28,7 @@ Admin: /admin, Waypoint id 1 only (ADMIN_CENTRAL_USER_IDS=1). Files: `middleware
   at the next boot) and `test/encryption-key.test.js` (a missing or wrong key). `test/helpers.js`
   spawns the real `server.js` against PGlite on the Postgres wire protocol, with stand-in Waypoint (code exchange; it can also send a guest, to prove the app refuses one) and OpenAI (via `OPENAI_BASE_URL`). PGlite runs one transaction at a time.
 
-Headers, errors and logs: `middleware/securityHeaders.js` sets a Content-Security-Policy (own scripts, the bug widget, the Inter and JetBrains Mono fonts from Google Fonts; a new outside source needs adding there) and `strict-origin-when-cross-origin`. A route that fails for a reason of ours answers 500 "Something went wrong" through `serverError(req, res, err)` in `middleware/errors.js`, which logs the real error with the request id and never sends `err.message` (it can hold SQL or a provider's answer); a 4xx still says what was wrong. Any `/api` path no router answers is a JSON 404, a body that will not parse a JSON 400 (413 over the limit). `middleware/requestLog.js` logs one line per request with an id (`X-Request-Id`): method, path, status, time, never a query string, body, header or cookie; `/health` is skipped. Node 22 (`engines`); `.npmrc` has `include=dev` so a `NODE_ENV=production` build still installs Vite. Tests: `test/fleet-patterns.test.js`. Its Waypoint button and Switch account wait for the move to cookie sessions.
+Headers, errors and logs: `middleware/securityHeaders.js` sets a Content-Security-Policy (own scripts, the bug widget, the Inter and JetBrains Mono fonts from Google Fonts; a new outside source needs adding there) and `strict-origin-when-cross-origin`. A route that fails for a reason of ours answers 500 "Something went wrong" through `serverError(req, res, err)` in `middleware/errors.js`, which logs the real error with the request id and never sends `err.message` (it can hold SQL or a provider's answer); a 4xx still says what was wrong. The only messages passed on are ones marked `err.expose`: Waypoint's own refusals (`config/sso.js`, a 4xx from it, e.g. "Invalid credentials") at sign-in, and the "re-save your AI key" sentence; the AI key test says only the provider's status code. Waypoint calls give up after 10 s. `authenticate` answers 401 only for a bad token or a missing profile (the client drops its token only on a 401); a database error there is a 500. Any `/api` path no router answers is a JSON 404, a body that will not parse a JSON 400 (413 over the limit). `middleware/requestLog.js` logs one line per request with an id (`X-Request-Id`): method, path, status, time, never a query string, body, header or cookie; `/health` is skipped. Node 22 (`engines`); `.npmrc` has `include=dev` so a `NODE_ENV=production` build still installs Vite. Tests: `test/fleet-patterns.test.js`. Its Waypoint button and Switch account wait for the move to cookie sessions.
 
 Plans and known issues go in `docs/ROADMAP.md`.
 
@@ -44,7 +45,7 @@ services/summaries.js     # Fixed comparison summaries members read (never AI-wr
 routes/auth.js            # SSO callback, register, login (all refuse guests), profile
 routes/groups.js          # Group CRUD + join/leave
 routes/health.js          # GET /health: SELECT 1 with a 3 s limit; 200, or 503 without database text; no-store
-routes/secrets.js         # Secret submission, admin-run comparison, admin logs
+routes/secrets.js         # Secret submission, admin-run comparison
 routes/ai.js              # User AI config management
 routes/admin.js           # Site admin (/admin): status line, all groups with their secrets and logs
 src/                      # React frontend (App.jsx wraps the routed page in one `<main id="main">`; `test/a11y.test.js` checks it)
@@ -58,20 +59,27 @@ src/                      # React frontend (App.jsx wraps the routed page in one
    and it relies on `trust proxy` (one hop, Railway's) in `server.js` for real client IPs.
 3. User writes a secret (SEAL SECRET) — content only, no per-secret options; it is
    stored `sealed` and no AI call is made on write. The decoy count is a room rule
-   (`room_config.deniability`, 0-10), set by the group admin in the room's
-   intelligence rules, and applies to every reveal in that room.
+   (`room_config.deniability`), set by the group admin in the room's intelligence rules,
+   and applies to every reveal in that room. The rules slider offers 0-10; the server
+   saves the number unchecked, treats anything not above 0 as no decoys, and asks the AI
+   for at most 20 per secret (`generateObfuscation`).
 4. User marks it SUBMIT when ready (`sealed` → `submitted`); UNSUBMIT puts it back.
    Secrets are capped at 2000 characters and 10 submitted per member per room (they cost
    the room admin's AI key).
 5. Room admin hits RUN COMPARISON (`POST /api/secrets/group/:groupId/compare`, 403 for
    non-admins) — the backend compares every cross-member pair of submitted secrets using
    the **admin's** AI key, not the submitters'. Only current members' secrets take part;
-   someone who left keeps theirs out. The response carries counts and match ids only.
+   someone who left keeps theirs out. A secret unsubmitted, deleted or left behind while
+   the run is going is skipped: each pair is re-checked before its AI call and again,
+   rows locked, in the transaction that writes its result and opens its vault. Submit,
+   unsubmit and delete answer 409 if the secret changed under them (a run matched it).
+   The response carries counts and match ids only.
 6. If AI says match (confidence >= 0.6), vault opens — both secrets revealed, padded
    with AI-generated decoys when the room's `deniability` is above 0, shown directly
    when it is 0. The AI's raw reasoning quotes both secrets, so a vault with decoys
    shows the pair's `user_summary` as its "AI Consensus" instead. If the AI
-   gives back no usable decoys, no vault opens and the pair is retried next run.
+   gives back no usable decoys, no vault opens, the pair is logged as failed (not as a
+   match) and it is retried next run.
 7. Every `user_summary` members read is a fixed sentence from `services/summaries.js`,
    picked from the outcome and the room's strategy; the AI is not asked for one. Room
    admins' free-text rules go into the comparison prompt as instructions, so any text

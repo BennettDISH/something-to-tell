@@ -168,10 +168,12 @@ router.patch('/:id/submit', authenticate, async (req, res) => {
       return res.status(400).json({ error: `You can have at most ${MAX_SUBMITTED_PER_MEMBER} secrets submitted in a room at once` });
     }
 
+    // Only from sealed: a comparison run or another tab may have changed it since the read.
     const { rows: [updated] } = await pool.query(
-      "UPDATE secrets SET status = 'submitted' WHERE id = $1 RETURNING *",
+      "UPDATE secrets SET status = 'submitted' WHERE id = $1 AND status = 'sealed' RETURNING *",
       [req.params.id]
     );
+    if (!updated) return res.status(409).json({ error: 'That secret just changed. Reload and try again.' });
     res.json({ secret: decryptFields(updated, ['content']) });
   } catch (err) {
     serverError(req, res, err);
@@ -188,10 +190,12 @@ router.patch('/:id/unsubmit', authenticate, async (req, res) => {
     if (!secret) return res.status(404).json({ error: 'Secret not found' });
     if (secret.status !== 'submitted') return res.status(400).json({ error: 'Secret is not submitted' });
 
+    // Only from submitted: a run that matched it meanwhile has already opened its vault.
     const { rows: [updated] } = await pool.query(
-      "UPDATE secrets SET status = 'sealed' WHERE id = $1 RETURNING *",
+      "UPDATE secrets SET status = 'sealed' WHERE id = $1 AND status = 'submitted' RETURNING *",
       [req.params.id]
     );
+    if (!updated) return res.status(409).json({ error: 'That secret just changed. Reload and try again.' });
     res.json({ secret: decryptFields(updated, ['content']) });
   } catch (err) {
     serverError(req, res, err);
@@ -216,6 +220,61 @@ function oneRunPerRoom(handler) {
       roomsComparing.delete(room);
     }
   };
+}
+
+// Both secrets of a pair ($1, $2) are still in the run: submitted (or matched earlier in this
+// same run, which goes on comparing them with the rest), and their owners still in room $3.
+// A run reads the submitted secrets once, then spends seconds per AI call, and meanwhile a
+// member can unsubmit, delete or leave.
+const STILL_IN_RUN = `id IN ($1, $2) AND status IN ('submitted', 'matched')
+  AND central_user_id IN (SELECT central_user_id FROM group_members WHERE group_id = $3)`;
+
+async function stillInRun(groupId, a, b) {
+  const { rows: [{ n }] } = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM secrets WHERE ${STILL_IN_RUN}`, [a.id, b.id, groupId]);
+  return n === 2;
+}
+
+// Write one pair's outcome, or nothing if either secret was withdrawn while the AI was
+// answering. Both rows are locked before anything is written, so a withdrawal can't land
+// halfway; a match moves both to 'matched' in the same transaction as its vault, so a vault
+// never opens on a secret its member took back (and a deleted one can't break the run).
+// Returns null for a skipped pair, else { vaultId } (undefined without a vault).
+async function recordPair(groupId, a, b, outcome) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rowCount } = await client.query(
+      outcome.vault
+        ? `UPDATE secrets SET status = 'matched' WHERE ${STILL_IN_RUN}`
+        : `SELECT id FROM secrets WHERE ${STILL_IN_RUN} FOR SHARE`,
+      [a.id, b.id, groupId]
+    );
+    if (rowCount !== 2) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    await client.query(
+      `INSERT INTO comparisons (group_id, secret_a_id, secret_b_id, matched, confidence, ai_reasoning, user_summary)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [groupId, a.id, b.id, outcome.matched, outcome.confidence, encrypt(outcome.reasoning), encrypt(outcome.summary)]
+    );
+    let vaultId;
+    if (outcome.vault) {
+      ({ rows: [{ id: vaultId }] } = await client.query(
+        `INSERT INTO vault_matches (group_id, secret_a_id, secret_b_id, ai_reasoning, obfuscated_a, obfuscated_b)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+        [groupId, a.id, b.id, encrypt(outcome.reasoning), encryptArray(outcome.vault.a), encryptArray(outcome.vault.b)]
+      ));
+    }
+    await client.query('COMMIT');
+    return { vaultId };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // Admin: trigger AI comparison on all submitted secrets in a group
@@ -286,7 +345,10 @@ router.post('/group/:groupId/compare', authenticate, requireEncryption, oneRunPe
           [a.id, b.id]
         );
         if (existingMatch[0]) continue;
+        // Withdrawn since the read above: not sent to the AI.
+        if (!(await stillInRun(groupId, a, b))) continue;
 
+        let outcome;
         try {
           // Add a small delay between calls to help with rate limits
           if (allResults.length > 0 || errors > 0) await sleep(500);
@@ -294,16 +356,10 @@ router.post('/group/:groupId/compare', authenticate, requireEncryption, oneRunPe
           const result = await compareSecrets(aiConfig, a.content, b.content, group.ai_prompt, group.room_config);
 
           const isMatch = result.match && result.confidence >= 0.6;
-          const summary = comparisonSummary(isMatch, group.room_config);
+          outcome = { matched: isMatch, confidence: result.confidence, reasoning: result.reasoning, summary: comparisonSummary(isMatch, group.room_config) };
 
-          await pool.query(
-            `INSERT INTO comparisons (group_id, secret_a_id, secret_b_id, matched, confidence, ai_reasoning, user_summary)
-             VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-            [groupId, a.id, b.id, isMatch, result.confidence, encrypt(result.reasoning), encrypt(summary)]
-          );
-
-          allResults.push({ matched: isMatch, user_summary: summary });
-
+          // Decoys before anything is written: if none come back, the pair is logged as
+          // failed below and retried next run, not logged as a match with no vault.
           if (isMatch) {
             const deniability = group.room_config?.deniability || 0;
             let obfuscatedA = [a.content];
@@ -315,35 +371,28 @@ router.post('/group/:groupId/compare', authenticate, requireEncryption, oneRunPe
               const fakesB = await generateObfuscation(aiConfig, b.content, deniability);
               obfuscatedB = shuffleWithSecret(fakesB, b.content);
             }
-
-            const { rows: [match] } = await pool.query(
-              `INSERT INTO vault_matches (group_id, secret_a_id, secret_b_id, ai_reasoning, obfuscated_a, obfuscated_b)
-               VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-              [groupId, a.id, b.id, encrypt(result.reasoning), encryptArray(obfuscatedA), encryptArray(obfuscatedB)]
-            );
-
-            await pool.query("UPDATE secrets SET status = 'matched' WHERE id IN ($1, $2)", [a.id, b.id]);
-            // The room admin who runs this is usually not one of the pair: send no
-            // content, reasoning or decoy lists. The two members read their vault from
-            // GET /group/:groupId.
-            newMatches.push({ id: match.id });
+            outcome.vault = { a: obfuscatedA, b: obfuscatedB };
           }
         } catch (aiErr) {
           console.error('AI comparison failed:', describeAiError(aiErr));
           errors++;
-          
+
           let userMsg = FAILED_SUMMARY;
           if (aiErr.message.includes('429') || aiErr.message.toLowerCase().includes('quota')) {
             userMsg = QUOTA_SUMMARY;
           }
 
-          // Insert a failure record so we know it was attempted
-          await pool.query(
-            `INSERT INTO comparisons (group_id, secret_a_id, secret_b_id, matched, confidence, ai_reasoning, user_summary)
-             VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-            [groupId, a.id, b.id, false, 0, encrypt(aiErr.message), encrypt(userMsg)]
-          );
+          // A failure record so we know it was attempted
+          outcome = { matched: false, confidence: 0, reasoning: aiErr.message, summary: userMsg, failed: true };
         }
+
+        const saved = await recordPair(groupId, a, b, outcome);
+        if (!saved || outcome.failed) continue;
+        allResults.push({ matched: outcome.matched, user_summary: outcome.summary });
+        // The room admin who runs this is usually not one of the pair: send no
+        // content, reasoning or decoy lists. The two members read their vault from
+        // GET /group/:groupId.
+        if (saved.vaultId) newMatches.push({ id: saved.vaultId });
       }
     }
 
@@ -368,7 +417,8 @@ router.delete('/:id', authenticate, async (req, res) => {
     if (!secret) return res.status(404).json({ error: 'Secret not found' });
     if (secret.status === 'matched') return res.status(400).json({ error: 'Cannot delete a matched secret' });
 
-    await pool.query('DELETE FROM secrets WHERE id = $1', [req.params.id]);
+    const { rowCount } = await pool.query("DELETE FROM secrets WHERE id = $1 AND status <> 'matched'", [req.params.id]);
+    if (!rowCount) return res.status(409).json({ error: 'That secret just changed. Reload and try again.' });
     res.json({ message: 'Secret deleted' });
   } catch (err) {
     serverError(req, res, err);

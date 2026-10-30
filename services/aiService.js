@@ -16,7 +16,7 @@ export async function getUserAiConfig(centralUserId) {
   if (!rows[0]) return null;
   const key = tryDecrypt(rows[0].api_key);
   if (!key.ok) {
-    throw new Error('Your stored AI API key can no longer be decrypted — re-save it in Settings.');
+    throw Object.assign(new Error('Your stored AI API key can no longer be decrypted — re-save it in Settings.'), { expose: true });
   }
   return { ...rows[0], api_key: key.value };
 }

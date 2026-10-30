@@ -1,4 +1,15 @@
 const AUTH_URL = process.env.AUTH_SERVICE_URL;
+// A Waypoint that never answers would otherwise hold the sign-in request open.
+const TIMEOUT_MS = 10_000;
+
+// Waypoint turned the request down (a 4xx): its own sentence, like "Invalid credentials", is
+// for the visitor (err.expose). Anything else, a 5xx or a timeout included, stays in the log.
+async function refusal(res, fallback) {
+  const body = await res.json().catch(() => ({}));
+  const err = new Error(body.error || fallback);
+  if (res.status < 500) err.expose = true;
+  return err;
+}
 
 export async function centralRegister({ username, email, password, first_name, last_name }) {
   const res = await fetch(`${AUTH_URL}/api/auth/proxy/register`, {
@@ -9,11 +20,9 @@ export async function centralRegister({ username, email, password, first_name, l
       client_id: process.env.SSO_CLIENT_ID,
       client_secret: process.env.SSO_CLIENT_SECRET,
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Registration failed');
-  }
+  if (!res.ok) throw await refusal(res, 'Registration failed');
   return res.json();
 }
 
@@ -26,11 +35,9 @@ export async function centralLogin({ email, password }) {
       client_id: process.env.SSO_CLIENT_ID,
       client_secret: process.env.SSO_CLIENT_SECRET,
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Login failed');
-  }
+  if (!res.ok) throw await refusal(res, 'Login failed');
   return res.json();
 }
 
@@ -44,10 +51,8 @@ export async function exchangeCode(code) {
       client_id: process.env.SSO_CLIENT_ID,
       client_secret: process.env.SSO_CLIENT_SECRET,
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Code exchange failed');
-  }
+  if (!res.ok) throw await refusal(res, 'Code exchange failed');
   return res.json();
 }

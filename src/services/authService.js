@@ -60,7 +60,7 @@ export async function getProfile() {
   const res = await fetch(`${API}/profile`, {
     headers: authHeaders(),
   });
-  if (!res.ok) throw new Error('Not authenticated');
+  if (!res.ok) throw Object.assign(new Error('Not authenticated'), { status: res.status });
   const data = await res.json();
   return data.user;
 }

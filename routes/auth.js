@@ -4,6 +4,7 @@ import pool from '../config/db.js';
 import { centralRegister, centralLogin, exchangeCode } from '../config/sso.js';
 import { authenticate } from '../middleware/auth.js';
 import { rateLimit } from '../middleware/rateLimit.js';
+import { serverError } from '../middleware/errors.js';
 
 const router = Router();
 
@@ -67,11 +68,18 @@ async function signIn(res, centralUser) {
   res.json({ token: issueToken(profile), user: profile });
 }
 
+// Waypoint's own refusal ("Invalid credentials") is passed on; anything else, a database
+// error or a Waypoint that timed out, is ours and answers "Something went wrong".
+function signInFailed(req, res, err) {
+  if (err.expose) return res.status(400).json({ error: err.message });
+  serverError(req, res, err);
+}
+
 router.post('/register', signInLimit, async (req, res) => {
   try {
     await signIn(res, await centralRegister(req.body));
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    signInFailed(req, res, err);
   }
 });
 
@@ -79,7 +87,7 @@ router.post('/login', signInLimit, async (req, res) => {
   try {
     await signIn(res, await centralLogin(req.body));
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    signInFailed(req, res, err);
   }
 });
 
@@ -87,7 +95,7 @@ router.post('/sso-callback', callbackLimit, async (req, res) => {
   try {
     await signIn(res, await exchangeCode(req.body.code));
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    signInFailed(req, res, err);
   }
 });
 

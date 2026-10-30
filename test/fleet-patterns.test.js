@@ -81,6 +81,30 @@ describe('a failure on our side', () => {
       await own.stop();
     }
   });
+
+  it('sign-in, the token check and the AI key test say so too, and only a bad token is a 401', async () => {
+    const own = await startApp();
+    try {
+      const user = await own.user();
+      // Waypoint's own refusal still reaches the visitor.
+      const refused = await own.request('POST', '/api/auth/login', { body: { email: 'mira@example.com', password: 'wrong' } });
+      assert.deepEqual([refused.status, refused.body], [400, { error: 'Invalid credentials' }]);
+
+      await own.db.query('DROP TABLE ai_configs CASCADE');
+      const test = await user.as('POST', '/api/ai/test');
+      assert.deepEqual([test.status, test.body], [500, { error: 'Something went wrong' }]);
+
+      await own.db.query('DROP TABLE profiles CASCADE');
+      const signIn = await own.request('POST', '/api/auth/sso-callback', { body: { code: own.waypoint.issueCode(own.waypoint.newAccount()) } });
+      assert.deepEqual([signIn.status, signIn.body], [500, { error: 'Something went wrong' }]);
+      // A database error is not a bad token: the client keeps it rather than signing out.
+      const profile = await user.as('GET', '/api/auth/profile');
+      assert.deepEqual([profile.status, profile.body], [500, { error: 'Something went wrong' }]);
+      assert.equal((await own.request('GET', '/api/auth/profile', { token: 'not-a-token' })).status, 401);
+    } finally {
+      await own.stop();
+    }
+  });
 });
 
 describe('the request log', () => {

@@ -144,9 +144,11 @@ const fenced = (prompt, label) => prompt.match(new RegExp(`<${label} nonce="[^"]
 // Chat completions. A comparison prompt "matches" when the word "alpha" appears in both
 // secrets (twice in the prompt); its reasoning quotes both secrets, as a real model's does.
 // A decoy prompt gets two fixed decoys back. Every call's Authorization header is kept so
-// tests can see which API key the app sent.
+// tests can see which API key the app sent. A comparison with "slow" in a secret is held
+// until release(), so a test can act while the AI is answering (waiting() counts them).
 async function startOpenAI() {
   const calls = [];
+  const held = [];
   const server = await jsonServer((req, body, send) => {
     if (req.method !== 'POST' || req.url !== '/v1/chat/completions') return send(404, { error: { message: 'not found' } });
     const system = body.messages.find((m) => m.role === 'system')?.content || '';
@@ -182,13 +184,15 @@ async function startOpenAI() {
       const garbled = [fenced(user, 'secret_a'), fenced(user, 'secret_b')].find((s) => /garbled/.test(s || ''));
       if (garbled) content = garbled;
     }
-    send(200, {
+    const reply = () => send(200, {
       id: 'chatcmpl-test', object: 'chat.completion', created: 0, model: body.model,
       choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content } }],
       usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
     });
+    if (!/decoy/i.test(system) && /slow/.test(user)) held.push(reply);
+    else reply();
   });
-  return { ...server, calls };
+  return { ...server, calls, waiting: () => held.length, release: () => held.splice(0).forEach((reply) => reply()) };
 }
 
 /** Start Postgres, the stand-ins and the app. Returns helpers and stop(). Pass `db` (from

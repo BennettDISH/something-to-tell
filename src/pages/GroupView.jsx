@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getGroup, updateGroup, getGroupSecrets, addSecret, submitSecret, unsubmitSecret, triggerCompare, deleteSecret, deleteGroup, leaveGroup } from '../services/api';
+import { FAILED_SUMMARY, QUOTA_SUMMARY } from '../../services/summaries.js';
+
+// A pair the AI couldn't judge. Members get no confidence number or reasoning, only the fixed
+// summary, and a failed pair's is one of these two sentences.
+const failedPair = (c) => !c.matched && [FAILED_SUMMARY, QUOTA_SUMMARY].includes(c.user_summary);
 
 const PURPOSES = [
   { value: 'fun', label: 'Fun & Games', icon: '\u{1F389}', description: 'Lighthearted, silly, embarrassing confessions — keep it playful' },
@@ -598,16 +603,11 @@ export default function GroupView() {
                     background: c.matched ? 'rgba(0, 184, 148, 0.05)' : 'rgba(255, 255, 255, 0.02)'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      <span className={`badge badge--${c.matched ? 'matched' : (c.confidence === 0 ? 'danger' : 'sealed')}`} style={{ width: '80px', textAlign: 'center' }}>
-                        {c.matched ? 'MATCH' : (c.confidence === 0 ? 'ERROR' : 'NO MATCH')}
+                      <span className={`badge badge--${c.matched ? 'matched' : (failedPair(c) ? 'danger' : 'sealed')}`} style={{ width: '80px', textAlign: 'center' }}>
+                        {c.matched ? 'MATCH' : (failedPair(c) ? 'ERROR' : 'NO MATCH')}
                       </span>
                       <div>
                         <div style={{ fontSize: '0.9rem', color: '#e8e8f0' }}>{c.user_summary || 'No summary available.'}</div>
-                        {c.confidence === 0 && (
-                          <div style={{ fontSize: '0.75rem', color: '#ff7675', marginTop: '4px' }}>
-                             Full Reason: {c.ai_reasoning}
-                          </div>
-                        )}
                         <div style={{ fontSize: '0.7rem', color: '#555570', marginTop: '2px' }}>
                           Intelligence analysis completed {new Date(c.created_at).toLocaleTimeString()}
                         </div>
