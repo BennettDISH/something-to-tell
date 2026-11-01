@@ -277,17 +277,25 @@ async function recordPair(groupId, a, b, outcome) {
   }
 }
 
-// Admin: trigger AI comparison on all submitted secrets in a group
-router.post('/group/:groupId/compare', authenticate, requireEncryption, oneRunPerRoom(async (req, res) => {
+// Only the room's admin runs a comparison. Asked before the one-run guard, so that nobody else
+// can take a room's turn from its admin for a moment, or learn from a 409 that a run is going.
+async function requireRoomAdmin(req, res, next) {
   try {
-    const { groupId } = req.params;
-
-    // Verify user is group admin
     const { rows: membership } = await pool.query(
       "SELECT * FROM group_members WHERE group_id = $1 AND central_user_id = $2 AND role = 'admin'",
-      [groupId, req.user.central_user_id]
+      [req.params.groupId, req.user.central_user_id]
     );
     if (!membership[0]) return res.status(403).json({ error: 'Only the group admin can trigger comparison' });
+    next();
+  } catch (err) {
+    serverError(req, res, err);
+  }
+}
+
+// Admin: trigger AI comparison on all submitted secrets in a group
+router.post('/group/:groupId/compare', authenticate, requireEncryption, requireRoomAdmin, oneRunPerRoom(async (req, res) => {
+  try {
+    const { groupId } = req.params;
 
     // Get current room admin AI config
     const aiConfig = await getUserAiConfig(req.user.central_user_id);

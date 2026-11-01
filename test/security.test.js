@@ -230,6 +230,26 @@ test("no route shows one member another member's secret, the room admin's includ
   assert.ok([vault[0].obfuscated_a, vault[0].obfuscated_b].flat().includes(miaWords));
 });
 
+test("only the room admin touches a room's comparison run: nobody else sees that one is going", async () => {
+  const roomAdmin = await signIn();
+  const room = await newRoom(roomAdmin);
+  const [mia, noah] = [await member(room), await member(room)];
+  await write(mia, room, 'slow: Mia is late on purpose');
+  await write(noah, room, 'Noah is never late');
+  const url = `/api/secrets/group/${room.id}/compare`;
+
+  const run = roomAdmin.as('POST', url);
+  try {
+    while (!openai.waiting()) await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal((await bob.as('POST', url)).status, 403, 'someone from another room, during a run');
+    assert.equal((await noah.as('POST', url)).status, 403, 'a member, during a run');
+    assert.equal((await roomAdmin.as('POST', url)).status, 409, 'the room admin, a second time');
+  } finally {
+    openai.release();
+    assert.equal((await run).status, 200);
+  }
+});
+
 // Not pinned here, and open (docs/ROADMAP.md): a room admin's free-text rules are instructions to
 // the AI, and the decoy count is theirs too. With a secret of their own submitted, a rule that says
 // everything matches opens a vault on every submitted secret in the room. Closing it changes what
