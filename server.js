@@ -27,6 +27,12 @@ app.use(securityHeaders());
 app.use(cors());
 app.use(express.json());
 
+// What /api answers is private (secrets, vaults, rooms): nothing here stays in a browser's cache.
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupRoutes);

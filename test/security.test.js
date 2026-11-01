@@ -134,6 +134,7 @@ const checks = securityChecks({
   // No crossSite. The session is a Bearer token the page reads from localStorage, and no route sets
   // or reads a cookie, so a browser adds nothing to another site's request. A cookie session would
   // change that: the test below fails then, and this check has to come on with a guard.
+  noStore: {},
   owned: {
     params: { id: () => annsRoom.id, groupId: () => annsRoom.id },
     // Takes only the asker out: a stranger's call answers 200 and changes nothing (tested below).
