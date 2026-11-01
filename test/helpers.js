@@ -12,8 +12,8 @@ import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CLIENT_ID = 'test-client';
-const CLIENT_SECRET = 'test-secret';
+export const CLIENT_ID = 'test-client';
+export const CLIENT_SECRET = 'test-secret';
 export const JWT_SECRET = 'test-jwt-secret';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -92,7 +92,7 @@ function jsonServer(handler) {
 // each route, so tests can see what the app's own limits kept out.
 const GUEST_EMAIL = 'guest@example.test';
 
-async function startWaypoint() {
+export async function startWaypoint() {
   let nextId = 1000;
   let nextCode = 1;
   const codes = new Map(); // code -> account
@@ -146,7 +146,7 @@ const fenced = (prompt, label) => prompt.match(new RegExp(`<${label} nonce="[^"]
 // A decoy prompt gets two fixed decoys back. Every call's Authorization header is kept so
 // tests can see which API key the app sent. A comparison with "slow" in a secret is held
 // until release(), so a test can act while the AI is answering (waiting() counts them).
-async function startOpenAI() {
+export async function startOpenAI() {
   const calls = [];
   const held = [];
   const server = await jsonServer((req, body, send) => {

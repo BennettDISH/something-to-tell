@@ -34,6 +34,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "fleet-kit": "file:vendor/fleet-kit-1.0.8.tgz",
     "vite": "^6.0.7"
   }
 }

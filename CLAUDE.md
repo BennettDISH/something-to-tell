@@ -20,7 +20,7 @@ Admin: /admin, Waypoint id 1 only (ADMIN_CENTRAL_USER_IDS=1). Files: `middleware
 
 - `npm test` — runs one file at a time (`--test-concurrency=1`, 180 s per test): every file starts its own PGlite and server, and side by side on a busy machine a file timed out. The first database of a run is dumped to `node_modules/.cache/pglite-<version>.tar` and every later one loads that dump (`test/helpers.js`), which roughly halves the suite's CPU: about 45 s on this machine, against the push check's 120 s limit. `test/api.test.js` (auth, groups, secrets and AI keys encrypted at rest, a full comparison
   that opens a vault), `test/privacy.test.js` (what runs, vaults and leavers expose to other members),
-  `test/admin.test.js` (the /admin gate, no AI key in any admin answer), `test/return-path.test.js` (sign-in comes back to the page asked for),
+  `test/admin.test.js` (the /admin gate, no AI key in any admin answer), `test/security.test.js` (the fleet's checks from `fleet-kit/test/security`, a dev dependency vendored for this file alone, on the real routes in-process; then who can read whose secret, on every GET the app has), `test/return-path.test.js` (sign-in comes back to the page asked for),
   `test/health.test.js` (the health route, with a failing database), `test/a11y.test.js` (page language, zoomable viewport, one `<main>`),
   `test/limits.test.js` (secret size and submit caps), `test/sign-in-limits.test.js` (per-IP login
   limits; Waypoint caps its proxy routes per calling address, this server's), `test/sso.test.js` (guests
