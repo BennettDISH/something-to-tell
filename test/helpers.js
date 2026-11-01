@@ -157,9 +157,11 @@ export async function startOpenAI() {
     let content;
     if (/decoy/i.test(system)) {
       const decoys = ['I once ate a whole cake alone', 'I still sleep with a nightlight'];
-      // Other shapes a model replies with: decoys keyed by number, or none at all.
+      // Other shapes a model replies with: decoys keyed by number, or none at all. "freshdecoys"
+      // gets new ones on every call, as a real model's would be.
       if (/numbered/.test(user)) content = JSON.stringify({ 1: decoys[0], 2: decoys[1] });
       else if (/nodecoys/.test(user)) content = JSON.stringify({ fakes: [] });
+      else if (/freshdecoys/.test(user)) content = JSON.stringify({ fakes: [`A made-up secret, number ${calls.length}`, `Another made-up secret, number ${calls.length}`] });
       else content = JSON.stringify({ fakes: decoys });
     } else {
       const match = (user.match(/alpha/g) || []).length >= 2;

@@ -250,6 +250,29 @@ test("only the room admin touches a room's comparison run: nobody else sees that
   }
 });
 
+test("two vaults on one secret can't be laid side by side to pick out the real one", async () => {
+  const roomAdmin = await signIn();
+  const room = await newRoom(roomAdmin, { deniability: 2 });
+  const [mia, noah] = [await member(room), await member(room)];
+  const hers = await write(mia, room, 'freshdecoys: An alpha secret of Mia');
+  // Two of Noah's own that both match hers, in the same run: one member can do this alone.
+  await write(noah, room, 'freshdecoys: Noah has an alpha thing');
+  await write(noah, room, 'freshdecoys: Noah has another alpha thing');
+
+  const run = await roomAdmin.as('POST', `/api/secrets/group/${room.id}/compare`);
+  assert.equal(run.status, 200);
+  assert.equal(run.json.matches.length, 2);
+
+  const { json: { matches } } = await noah.as('GET', `/api/secrets/group/${room.id}`);
+  const lists = matches.map((m) => (m.user_a_id === mia.user.central_user_id ? m.obfuscated_a : m.obfuscated_b));
+  assert.equal(lists.length, 2);
+  for (const list of lists) {
+    assert.equal(list.length, 3, 'her secret and two decoys');
+    assert.ok(list.includes(hers.content));
+  }
+  assert.deepEqual([...lists[0]].sort(), [...lists[1]].sort(), 'all the two lists share would be her real secret');
+});
+
 // Not pinned here, and open (docs/ROADMAP.md): a room admin's free-text rules are instructions to
 // the AI, and the decoy count is theirs too. With a secret of their own submitted, a rule that says
 // everything matches opens a vault on every submitted secret in the room. Closing it changes what

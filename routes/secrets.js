@@ -336,6 +336,15 @@ router.post('/group/:groupId/compare', authenticate, requireEncryption, requireR
       [groupId]
     );
 
+    // One set of decoys per secret for the whole run. A secret can match several others in a run
+    // (a matched secret leaves later runs, not this one), and a new set in each vault would let a
+    // member lay the lists side by side, with two secrets of their own: what they share is the real one.
+    const decoysOf = new Map();
+    const coverFor = async (secret, deniability) => {
+      if (!decoysOf.has(secret.id)) decoysOf.set(secret.id, await generateObfuscation(aiConfig, secret.content, deniability));
+      return shuffleWithSecret(decoysOf.get(secret.id), secret.content);
+    };
+
     // Compare all pairs
     const newMatches = [];
     const allResults = [];
@@ -374,10 +383,8 @@ router.post('/group/:groupId/compare', authenticate, requireEncryption, requireR
             let obfuscatedB = [b.content];
 
             if (deniability > 0) {
-              const fakesA = await generateObfuscation(aiConfig, a.content, deniability);
-              obfuscatedA = shuffleWithSecret(fakesA, a.content);
-              const fakesB = await generateObfuscation(aiConfig, b.content, deniability);
-              obfuscatedB = shuffleWithSecret(fakesB, b.content);
+              obfuscatedA = await coverFor(a, deniability);
+              obfuscatedB = await coverFor(b, deniability);
             }
             outcome.vault = { a: obfuscatedA, b: obfuscatedB };
           }
